@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Web3 Adivinhador - Ethereum</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #22223b;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 420px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(34,34,59,0.08);
+            padding: 32px 24px 24px 24px;
+            text-align: center;
+        }
+        h1 {
+            color: #3a0ca3;
+            margin-bottom: 16px;
+        }
+        h2 {
+            color: #4361ee;
+            margin-top: 32px;
+        }
+        input[type="text"] {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #bdbdbd;
+            width: 70%;
+            margin-bottom: 8px;
+        }
+        button {
+            background: #3a0ca3;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            margin: 8px 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #4361ee;
+        }
+        #result {
+            margin-top: 8px;
+            font-weight: bold;
+        }
+        #game {
+            margin-top: 24px;
+        }
+        #questionArea, #guessArea {
+            margin-top: 16px;
+        }
+        #guess {
+            font-size: 1.2rem;
+            color: #f72585;
+            font-weight: bold;
+        }
+        img[alt="Akinator"] {
+            margin-bottom: 12px;
+        }
+        hr {
+            margin: 32px 0 24px 0;
+            border: none;
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://cdn-icons-png.flaticon.com/512/616/616494.png" alt="Akinator" width="100">
+        <h1>Web3 Adivinhador - Ethereum</h1>
+        <input type="text" id="ethAddress" placeholder="Digite o endereço Ethereum">
+        <button onclick="getBalance()">Consultar Saldo</button>
+        <p id="result"></p>
+
+        <hr>
+        <h2>Jogo de Adivinhação</h2>
+        <div id="game">
+            <button onclick="startGame()">Iniciar Jogo</button>
+            <div id="questionArea" style="display:none;">
+                <p id="question"></p>
+                <button onclick="sendAnswer('yes')">Sim</button>
+                <button onclick="sendAnswer('no')">Não</button>
+            </div>
+            <div id="guessArea" style="display:none;">
+                <p id="guess"></p>
+                <button onclick="startGame()">Jogar Novamente</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getBalance() {
+            const address = document.getElementById('ethAddress').value;
+            axios.post('/eth_balance', { address })
+                .then(res => {
+                    document.getElementById('result').innerText = 'Saldo: ' + res.data.balance + ' ETH';
+                })
+                .catch(err => {
+                    document.getElementById('result').innerText = 'Erro: ' + (err.response?.data?.error || err);
+                });
+        }
+
+        function startGame() {
+            document.getElementById('guessArea').style.display = 'none';
+            axios.post('/start_game')
+                .then(res => {
+                    document.getElementById('questionArea').style.display = 'block';
+                    document.getElementById('question').innerText = res.data.question;
+                });
+        }
+
+        function sendAnswer(answer) {
+            axios.post('/answer', { answer })
+                .then(res => {
+                    if (res.data.question) {
+                        document.getElementById('question').innerText = res.data.question;
+                    } else if (res.data.guess) {
+                        document.getElementById('questionArea').style.display = 'none';
+                        document.getElementById('guessArea').style.display = 'block';
+                        document.getElementById('guess').innerText = 'Eu acho que é: ' + res.data.guess;
+                    }
+                })
+                .catch(err => {
+                    alert('Erro: ' + (err.response?.data?.error || err));
+                });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtualenv
+.venv/
+venv/
+ENV/
+
+# VSCode
+.vscode/
+
+# Mac/Linux
+.DS_Store
+
+# Logs
+test.log
+*.log
+
+# Env
+.env
+*.env
+
+# Byte-compiled / optimized / DLL files
+*.so
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# OS generated files
+Thumbs.db
+
+# Flask
+instance/
+*.db
+
+# Ignore secrets
+questions.json
