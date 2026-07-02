@@ -321,6 +321,28 @@
                 <button class="btn btn-wrong"   onclick="markWrong()">✗ Errou!</button>
             </div>
             <p id="feedbackMsg"></p>
+
+            <!-- Learn form: shown after wrong guess -->
+            <div id="learnForm" style="display:none;width:100%;margin-top:4px;text-align:left;">
+                <p id="learnQuestionLabel" style="font-size:.82rem;color:var(--muted);margin-bottom:10px;"></p>
+                <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+                    <input class="eth-input" type="text" id="learnCharacter" placeholder="Nome do personagem *" maxlength="60">
+                    <input class="eth-input" type="text" id="learnEmoji" placeholder="Emoji do personagem (opcional, ex: ⚽)" maxlength="4" style="max-width:260px;">
+                    <input class="eth-input" type="text" id="learnQuestion" placeholder="Pergunta Sim/Não diferenciadora *" maxlength="150">
+                    <div style="display:flex;align-items:center;gap:14px;font-size:.85rem;color:var(--muted);padding:4px 0;flex-wrap:wrap;">
+                        <span>Para o personagem correto, a resposta é:</span>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--yes-color);">
+                            <input type="radio" name="learnAnswer" value="yes"> Sim
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--no-color);">
+                            <input type="radio" name="learnAnswer" value="no"> Não
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" onclick="submitLearn()" style="width:100%;">🧠 Ensinar o Gênio</button>
+                </div>
+                <p id="learnResult" style="font-size:.85rem;min-height:18px;margin-top:8px;"></p>
+            </div>
+
             <button class="btn btn-ghost" onclick="startGame()">↩ Jogar Novamente &nbsp;<kbd class="kbd" style="font-size:.65rem;opacity:.6">Enter</kbd></button>
         </div>
 
@@ -348,6 +370,7 @@
     const MAX_STEPS = 12;
     let history = [];
     let currentQuestion = '';
+    let currentGuessName = '';
     let wins = 0, total = 0;
     let feedbackGiven = false;
 
@@ -366,6 +389,12 @@
         document.getElementById('historyPanel').open = false;
         document.getElementById('feedbackMsg').textContent = '';
         document.getElementById('feedbackBtns').style.display = 'flex';
+        document.getElementById('learnForm').style.display = 'none';
+        document.getElementById('learnResult').textContent = '';
+        document.getElementById('learnCharacter').value = '';
+        document.getElementById('learnEmoji').value = '';
+        document.getElementById('learnQuestion').value = '';
+        document.querySelectorAll('input[name="learnAnswer"]').forEach(r => r.checked = false);
 
         fetch('/start_game', { method: 'POST' })
             .then(r => r.json())
@@ -430,6 +459,7 @@
     }
 
     function showGuess(guess, emoji, steps) {
+        currentGuessName = guess;
         document.getElementById('progressFill').style.width = '100%';
 
         document.getElementById('guessEmoji').textContent = emoji;
@@ -461,7 +491,53 @@
         feedbackGiven = true;
         document.getElementById('feedbackBtns').style.display = 'none';
         document.getElementById('feedbackMsg').className = 'feedback-no';
-        document.getElementById('feedbackMsg').textContent = '😅 Que pena! O gênio vai estudar mais...';
+        document.getElementById('feedbackMsg').textContent = '😅 Ops! Me ensine — quem era o personagem?';
+
+        document.getElementById('learnQuestionLabel').textContent =
+            `Qual pergunta Sim/Não diferencia seu personagem de "${currentGuessName}"?`;
+        document.getElementById('learnForm').style.display = 'block';
+    }
+
+    async function submitLearn() {
+        const character = document.getElementById('learnCharacter').value.trim();
+        const emoji     = document.getElementById('learnEmoji').value.trim() || '🎭';
+        const question  = document.getElementById('learnQuestion').value.trim();
+        const answer    = document.querySelector('input[name="learnAnswer"]:checked')?.value;
+        const result    = document.getElementById('learnResult');
+
+        if (!character || !question || !answer) {
+            result.className = 'feedback-no';
+            result.textContent = 'Preencha nome, pergunta e selecione Sim ou Não.';
+            return;
+        }
+
+        const btn = document.querySelector('#learnForm button');
+        btn.disabled = true;
+        result.textContent = '';
+
+        try {
+            const r = await fetch('/learn', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ character, emoji, question, new_char_answer: answer })
+            });
+            const data = await r.json();
+
+            if (data.success) {
+                document.getElementById('learnForm').style.display = 'none';
+                document.getElementById('feedbackMsg').className = 'feedback-yes';
+                document.getElementById('feedbackMsg').textContent =
+                    `🧠 Aprendi sobre ${data.character}! Da próxima vez vou adivinhar!`;
+            } else {
+                result.className = 'feedback-no';
+                result.textContent = data.error || 'Erro ao aprender.';
+                btn.disabled = false;
+            }
+        } catch {
+            result.className = 'feedback-no';
+            result.textContent = 'Erro de comunicação.';
+            btn.disabled = false;
+        }
     }
 
     function updateScore() {
