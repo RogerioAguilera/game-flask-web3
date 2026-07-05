@@ -384,12 +384,15 @@
     function startGame() {
         history = [];
         feedbackGiven = false;
+        document.getElementById('btnYes').disabled = false;
+        document.getElementById('btnNo').disabled = false;
         renderHistory();
         document.getElementById('historyPanel').style.display = 'none';
         document.getElementById('historyPanel').open = false;
         document.getElementById('feedbackMsg').textContent = '';
         document.getElementById('feedbackBtns').style.display = 'flex';
         document.getElementById('learnForm').style.display = 'none';
+        document.querySelector('#learnForm button').disabled = false;
         document.getElementById('learnResult').textContent = '';
         document.getElementById('learnCharacter').value = '';
         document.getElementById('learnEmoji').value = '';
@@ -475,11 +478,20 @@
         show('guessState');
     }
 
+    function sendFeedback(correct) {
+        fetch('/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ correct })
+        }).catch(() => {});
+    }
+
     function markCorrect() {
         if (feedbackGiven) return;
         feedbackGiven = true;
         wins++;
         updateScore();
+        sendFeedback(true);
         document.getElementById('feedbackBtns').style.display = 'none';
         document.getElementById('feedbackMsg').className = 'feedback-yes';
         document.getElementById('feedbackMsg').textContent = '🎉 O Gênio nunca erra!';
@@ -489,6 +501,7 @@
     function markWrong() {
         if (feedbackGiven) return;
         feedbackGiven = true;
+        sendFeedback(false);
         document.getElementById('feedbackBtns').style.display = 'none';
         document.getElementById('feedbackMsg').className = 'feedback-no';
         document.getElementById('feedbackMsg').textContent = '😅 Ops! Me ensine — quem era o personagem?';
@@ -525,6 +538,7 @@
 
             if (data.success) {
                 document.getElementById('learnForm').style.display = 'none';
+                btn.disabled = false;
                 document.getElementById('feedbackMsg').className = 'feedback-yes';
                 document.getElementById('feedbackMsg').textContent =
                     `🧠 Aprendi sobre ${data.character}! Da próxima vez vou adivinhar!`;

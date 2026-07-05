@@ -39,3 +39,4 @@ instance/
 
 # Ignore secrets
 questions.json
+stats.json
