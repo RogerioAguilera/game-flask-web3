@@ -79,6 +79,28 @@ def record_guess_feedback(guess_id, correct):
     save_stats()
 
 
+def _normalize(text):
+    return ' '.join(text.strip().casefold().split())
+
+
+def find_guess_id_by_name(character):
+    target = _normalize(character)
+    for g in GUESSES.values():
+        if _normalize(g['guess']) == target:
+            return g['id']
+    return None
+
+
+def find_existing_disambiguator(wrong_guess_id, new_char_id, question_text):
+    """Se essa mesma pergunta já separa exatamente esses dois personagens em algum
+    ponto da árvore, devolve o id do nó existente (para reaproveitar em vez de duplicar)."""
+    target = _normalize(question_text)
+    for q in QUESTIONS.values():
+        if _normalize(q['question']) == target and {q.get('yes'), q.get('no')} == {wrong_guess_id, new_char_id}:
+            return q['id']
+    return None
+
+
 QUESTIONS, GUESSES = load_data()
 STATS = load_stats()
 
@@ -121,6 +143,8 @@ def answer():
     guess = GUESSES.get(next_id)
     session['current_q'] = next_id
     session['last_guess_id'] = next_id
+    session['last_parent_q'] = current_q
+    session['last_parent_dir'] = user_answer
     if guess:
         record_guess_reached(next_id)
         return jsonify({'guess': guess['guess'], 'emoji': guess.get('emoji', '🔮'), 'steps': steps})
@@ -196,24 +220,37 @@ def learn():
     if not character or not question_text or new_char_answer not in ('yes', 'no'):
         return jsonify({'error': 'Dados incompletos para aprendizado.'}), 400
 
-    # Find the parent question that leads to the wrong guess
-    parent_q = None
-    parent_dir = None
-    for q in QUESTIONS.values():
-        if q.get('yes') == wrong_guess_id:
-            parent_q, parent_dir = q, 'yes'
-            break
-        if q.get('no') == wrong_guess_id:
-            parent_q, parent_dir = q, 'no'
-            break
-
-    if not parent_q:
+    # Nó pai é o que foi realmente percorrido nesta partida (evita pegar o primeiro
+    # nó "parecido" quando o mesmo personagem é reaproveitado em vários ramos).
+    parent_id = session.get('last_parent_q')
+    parent_dir = session.get('last_parent_dir')
+    parent_q = QUESTIONS.get(parent_id)
+    if not parent_q or parent_dir not in ('yes', 'no') or parent_q.get(parent_dir) != wrong_guess_id:
         return jsonify({'error': 'Não foi possível localizar o nó pai.'}), 400
+
+    # Reaproveita o personagem se ele já existir na árvore (evita nomes duplicados).
+    existing_char_id = find_guess_id_by_name(character)
+
+    # Se essa mesma pergunta já separa exatamente esse par de personagens em algum
+    # ponto da árvore, reaproveita o nó existente em vez de duplicar a pergunta.
+    if existing_char_id is not None:
+        existing_node_id = find_existing_disambiguator(wrong_guess_id, existing_char_id, question_text)
+        if existing_node_id == parent_id:
+            # O próprio nó pai já é o disambiguador certo (a árvore já sabia a resposta) — nada a fazer.
+            return jsonify({'success': True, 'character': GUESSES[existing_char_id]['guess']})
+        if existing_node_id is not None:
+            parent_q[parent_dir] = existing_node_id
+            try:
+                save_data()
+            except Exception:
+                parent_q[parent_dir] = wrong_guess_id
+                return jsonify({'error': 'Erro ao salvar aprendizado.'}), 500
+            return jsonify({'success': True, 'character': GUESSES[existing_char_id]['guess']})
 
     # Generate new IDs
     max_id = max(list(QUESTIONS.keys()) + list(GUESSES.keys()))
     new_q_id = max_id + 1
-    new_char_id = max_id + 2
+    new_char_id = existing_char_id if existing_char_id is not None else max_id + 2
 
     # Build new question node: new character on its answer branch, old wrong guess on the other
     if new_char_answer == 'yes':
@@ -222,7 +259,8 @@ def learn():
         new_question = {'id': new_q_id, 'question': question_text, 'yes': wrong_guess_id, 'no': new_char_id}
 
     QUESTIONS[new_q_id] = new_question
-    GUESSES[new_char_id] = {'id': new_char_id, 'guess': character, 'emoji': emoji}
+    if existing_char_id is None:
+        GUESSES[new_char_id] = {'id': new_char_id, 'guess': character, 'emoji': emoji}
     parent_q[parent_dir] = new_q_id
 
     try:
@@ -230,11 +268,12 @@ def learn():
     except Exception:
         # Rollback in-memory state
         del QUESTIONS[new_q_id]
-        del GUESSES[new_char_id]
+        if existing_char_id is None:
+            del GUESSES[new_char_id]
         parent_q[parent_dir] = wrong_guess_id
         return jsonify({'error': 'Erro ao salvar aprendizado.'}), 500
 
-    return jsonify({'success': True, 'character': character})
+    return jsonify({'success': True, 'character': GUESSES[new_char_id]['guess']})
 
 
 @app.route('/eth_balance', methods=['POST'])
