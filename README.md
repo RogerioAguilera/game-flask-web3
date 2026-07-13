@@ -58,6 +58,15 @@ A aplicação sobe em modo debug em [http://localhost:5000](http://localhost:500
 3. Ao final, confirme se o palpite do gênio estava certo.
 4. Se ele errou, preencha o formulário para ensiná-lo: nome do personagem, uma pergunta Sim/Não que o diferencia do palpite errado, e qual seria a resposta correta para o novo personagem.
 
+## Testes
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Os testes usam o test client do próprio Flask e uma árvore de personagens mínima e isolada (redirecionada via as variáveis de ambiente `QUESTIONS_FILE`/`STATS_FILE` para uma pasta temporária) — não leem nem escrevem no `questions.json`/`stats.json` reais.
+
 ## Rotas da API
 
 | Rota            | Método | Descrição                                                                 |

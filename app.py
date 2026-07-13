@@ -27,8 +27,8 @@ def network():
         'latest_block': w3.eth.block_number,
     })
 
-QUESTIONS_FILE = 'questions.json'
-STATS_FILE = 'stats.json'
+QUESTIONS_FILE = os.getenv('QUESTIONS_FILE', 'questions.json')
+STATS_FILE = os.getenv('STATS_FILE', 'stats.json')
 
 
 def load_data():
