@@ -4,23 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web3 Adivinhador</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
         :root {
-            --purple-dark: #1a0533;
-            --purple-mid:  #3a0ca3;
-            --purple-light:#7b2ff7;
-            --accent:      #f72585;
-            --gold:        #ffd700;
-            --text:        #e8e0ff;
-            --muted:       #a78bdf;
-            --yes-color:   #22c55e;
-            --no-color:    #ef4444;
+            --purple-dark: #050810;
+            --purple-mid:  #0891b2;
+            --purple-light:#00f0ff;
+            --accent:      #ff2ec4;
+            --gold:        #eaff00;
+            --text:        #d6faff;
+            --muted:       #5b8aa0;
+            --yes-color:   #00ff9c;
+            --no-color:    #ff2965;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             min-height: 100vh;
-            background: radial-gradient(ellipse at top, #2d0b6b 0%, #0d0019 65%);
+            background: radial-gradient(ellipse at top, #001c2e 0%, #000005 65%);
             font-family: 'Segoe UI', Arial, sans-serif;
             color: var(--text);
             display: flex;
@@ -29,11 +32,13 @@
             overflow-x: hidden;
         }
 
-        /* stars */
+        /* grid + stars */
         body::before {
             content: '';
             position: fixed; inset: 0; pointer-events: none; z-index: 0;
             background-image:
+                linear-gradient(rgba(0,240,255,.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,240,255,.05) 1px, transparent 1px),
                 radial-gradient(1px 1px at 15% 20%, #fff, transparent),
                 radial-gradient(1px 1px at 35% 10%, #fff, transparent),
                 radial-gradient(1px 1px at 65% 18%, #fff, transparent),
@@ -43,9 +48,10 @@
                 radial-gradient(1px 1px at 78% 80%, #fff, transparent),
                 radial-gradient(1px 1px at 25% 88%, #fff, transparent),
                 radial-gradient(1px 1px at 92% 55%, #fff, transparent),
-                radial-gradient(2px 2px at 42% 42%, rgba(247,37,133,.5), transparent),
-                radial-gradient(2px 2px at 72% 12%, rgba(123,47,247,.5), transparent),
-                radial-gradient(2px 2px at 18% 45%, rgba(255,215,0,.4), transparent);
+                radial-gradient(2px 2px at 42% 42%, rgba(255,46,196,.5), transparent),
+                radial-gradient(2px 2px at 72% 12%, rgba(0,240,255,.5), transparent),
+                radial-gradient(2px 2px at 18% 45%, rgba(234,255,0,.4), transparent);
+            background-size: 42px 42px, 42px 42px, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto, auto;
         }
 
         /* ── Layout ── */
@@ -63,11 +69,13 @@
             50%      { transform: translateY(-10px); }
         }
         header h1 {
-            font-size: 1.9rem; font-weight: 800; margin-top: 10px; letter-spacing: 1px;
-            background: linear-gradient(90deg, #b48bff, var(--gold), var(--accent));
+            font-family: 'Orbitron', 'Segoe UI', Arial, sans-serif;
+            font-size: 1.9rem; font-weight: 800; margin-top: 10px; letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(90deg, var(--purple-light), var(--gold), var(--accent));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
-        header p { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+        header p { font-family: 'Share Tech Mono', monospace; font-size: .85rem; color: var(--muted); margin-top: 4px; }
 
         main {
             position: relative; z-index: 1;
@@ -81,8 +89,9 @@
             display: flex; justify-content: space-between; align-items: center;
             padding: 8px 16px;
             background: rgba(255,255,255,.04);
-            border: 1px solid rgba(123,47,247,.25);
+            border: 1px solid rgba(0,240,255,.25);
             border-radius: 12px;
+            font-family: 'Share Tech Mono', monospace;
             font-size: .85rem; color: var(--muted);
         }
         #scorebar span { color: var(--gold); font-weight: 700; font-size: 1rem; }
@@ -92,9 +101,10 @@
         /* ── Card ── */
         .card {
             background: rgba(255,255,255,.04);
-            border: 1px solid rgba(123,47,247,.3);
+            border: 1px solid rgba(0,240,255,.3);
             border-radius: 20px; padding: 24px;
             backdrop-filter: blur(12px);
+            box-shadow: 0 0 24px rgba(0,240,255,.08), inset 0 0 40px rgba(255,46,196,.03);
         }
 
         /* ── Game card ── */
@@ -114,9 +124,9 @@
         /* question */
         .progress-bar { width: 100%; height: 6px; background: rgba(255,255,255,.1); border-radius: 99px; overflow: hidden; }
         .progress-fill { height: 100%; width: 5%; background: linear-gradient(90deg, var(--purple-light), var(--accent)); border-radius: 99px; transition: width .5s ease; }
-        .step-label { font-size: .75rem; color: #6b4faa; align-self: flex-end; }
+        .step-label { font-family: 'Share Tech Mono', monospace; font-size: .75rem; color: #2e7a8c; align-self: flex-end; }
         #questionText {
-            font-size: 1.2rem; font-weight: 600; color: #d6c6ff;
+            font-size: 1.2rem; font-weight: 600; color: #b8f4ff;
             line-height: 1.5; min-height: 58px;
             transition: opacity .25s;
         }
@@ -150,29 +160,29 @@
 
         .btn-primary {
             background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
-            color: #fff; box-shadow: 0 4px 20px rgba(123,47,247,.4);
+            color: #002830; box-shadow: 0 4px 20px rgba(0,240,255,.4);
         }
-        .btn-primary:not(:disabled):hover { box-shadow: 0 6px 28px rgba(123,47,247,.7); transform: translateY(-2px); }
+        .btn-primary:not(:disabled):hover { box-shadow: 0 6px 28px rgba(0,240,255,.7); transform: translateY(-2px); }
 
         .btn-yes {
             flex: 1; max-width: 160px;
-            background: linear-gradient(135deg, #0d6e38, #22c55e);
-            color: #fff; box-shadow: 0 4px 16px rgba(34,197,94,.3);
+            background: linear-gradient(135deg, #007a5c, var(--yes-color));
+            color: #002014; box-shadow: 0 4px 16px rgba(0,255,156,.3);
             font-size: 1.05rem;
         }
-        .btn-yes:not(:disabled):hover { box-shadow: 0 6px 24px rgba(34,197,94,.5); transform: translateY(-2px); }
+        .btn-yes:not(:disabled):hover { box-shadow: 0 6px 24px rgba(0,255,156,.5); transform: translateY(-2px); }
 
         .btn-no {
             flex: 1; max-width: 160px;
-            background: linear-gradient(135deg, #8b0000, #ef4444);
-            color: #fff; box-shadow: 0 4px 16px rgba(239,68,68,.3);
+            background: linear-gradient(135deg, #7a0030, var(--no-color));
+            color: #fff; box-shadow: 0 4px 16px rgba(255,41,101,.3);
             font-size: 1.05rem;
         }
-        .btn-no:not(:disabled):hover { box-shadow: 0 6px 24px rgba(239,68,68,.5); transform: translateY(-2px); }
+        .btn-no:not(:disabled):hover { box-shadow: 0 6px 24px rgba(255,41,101,.5); transform: translateY(-2px); }
 
         .btn-correct {
-            background: linear-gradient(135deg, #0d6e38, #22c55e);
-            color: #fff; box-shadow: 0 4px 12px rgba(34,197,94,.3);
+            background: linear-gradient(135deg, #007a5c, var(--yes-color));
+            color: #002014; box-shadow: 0 4px 12px rgba(0,255,156,.3);
         }
         .btn-wrong {
             background: transparent; color: var(--no-color);
@@ -190,7 +200,7 @@
         /* ── History panel ── */
         #historyPanel {
             background: rgba(255,255,255,.03);
-            border: 1px solid rgba(123,47,247,.2);
+            border: 1px solid rgba(0,240,255,.2);
             border-radius: 14px; padding: 14px 18px;
             display: none;
         }
@@ -206,7 +216,7 @@
         #historyList { list-style: none; padding: 12px 0 0; display: flex; flex-direction: column; gap: 6px; }
         #historyList li {
             display: flex; justify-content: space-between; align-items: center;
-            font-size: .82rem; color: #9d86cb; padding: 4px 0;
+            font-size: .82rem; color: #6fa8bc; padding: 4px 0;
             border-bottom: 1px solid rgba(255,255,255,.05);
         }
         #historyList li:last-child { border-bottom: none; }
@@ -214,29 +224,29 @@
         .hist-badge {
             padding: 2px 8px; border-radius: 6px; font-size: .75rem; font-weight: 700;
         }
-        .hist-yes { background: rgba(34,197,94,.2); color: #4ade80; }
-        .hist-no  { background: rgba(239,68,68,.2);  color: #f87171; }
+        .hist-yes { background: rgba(0,255,156,.2); color: #5cffbf; }
+        .hist-no  { background: rgba(255,41,101,.2);  color: #ff7096; }
 
         /* ── ETH card ── */
         #ethCard h2 { font-size: .95rem; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
         .eth-row { display: flex; gap: 8px; }
         .eth-input {
             flex: 1; background: rgba(255,255,255,.06);
-            border: 1px solid rgba(123,47,247,.35); border-radius: 10px;
-            padding: 9px 13px; color: #e8e0ff; font-size: .82rem; outline: none;
+            border: 1px solid rgba(0,240,255,.35); border-radius: 10px;
+            padding: 9px 13px; color: var(--text); font-size: .82rem; outline: none;
             transition: border-color .2s;
         }
-        .eth-input::placeholder { color: #5e4a8a; }
+        .eth-input::placeholder { color: #3d6270; }
         .eth-input:focus { border-color: var(--purple-light); }
         .btn-eth {
-            background: linear-gradient(135deg, #0f4c81, #1d9bf0);
+            background: linear-gradient(135deg, #7a0e9c, var(--accent));
             color: #fff; border-radius: 10px; padding: 9px 14px;
             font-size: .82rem; font-weight: 700; white-space: nowrap;
         }
-        .btn-eth:hover { box-shadow: 0 4px 16px rgba(29,155,240,.4); transform: translateY(-1px); }
+        .btn-eth:hover { box-shadow: 0 4px 16px rgba(255,46,196,.4); transform: translateY(-1px); }
         #ethResult { margin-top: 10px; font-size: .85rem; min-height: 20px; color: var(--muted); }
-        #ethResult.ok  { color: #4ade80; }
-        #ethResult.err { color: #f87171; }
+        #ethResult.ok  { color: #5cffbf; }
+        #ethResult.err { color: #ff7096; }
 
         /* ── Crystal ball (idle) ── */
         .crystal { font-size: 3.5rem; filter: drop-shadow(0 0 14px var(--accent)); animation: glow 2s ease-in-out infinite; }
@@ -575,7 +585,7 @@
 
     // ── Confetti ──
     function launchConfetti() {
-        const colors = ['#f72585','#ffd700','#7b2ff7','#4ade80','#60a5fa','#fb923c','#fff'];
+        const colors = ['#ff2ec4','#eaff00','#00f0ff','#00ff9c','#0891b2','#ff2965','#fff'];
         for (let i = 0; i < 70; i++) {
             setTimeout(() => {
                 const el = document.createElement('div');
