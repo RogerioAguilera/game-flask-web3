@@ -13,6 +13,9 @@ ENV/
 # VSCode
 .vscode/
 
+# Claude Code (personal skills/config, not project-related)
+.claude/
+
 # Mac/Linux
 .DS_Store
 
