@@ -79,6 +79,11 @@ def record_guess_feedback(guess_id, correct):
     save_stats()
 
 
+def get_json_body():
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else None
+
+
 def _normalize(text):
     return ' '.join(text.strip().casefold().split())
 
@@ -119,7 +124,9 @@ def start_game():
 
 @app.route('/answer', methods=['POST'])
 def answer():
-    data = request.get_json()
+    data = get_json_body()
+    if data is None:
+        return jsonify({'error': 'Corpo da requisição deve ser JSON válido.'}), 400
     user_answer = data.get('answer')
     current_q = session.get('current_q', 1)
 
@@ -158,7 +165,9 @@ def feedback():
     if not guess_id or guess_id not in GUESSES:
         return jsonify({'error': 'Sessão inválida para feedback.'}), 400
 
-    data = request.get_json()
+    data = get_json_body()
+    if data is None:
+        return jsonify({'error': 'Corpo da requisição deve ser JSON válido.'}), 400
     correct = data.get('correct')
     if not isinstance(correct, bool):
         return jsonify({'error': 'Campo "correct" deve ser booleano.'}), 400
@@ -211,7 +220,9 @@ def learn():
     if not wrong_guess_id or wrong_guess_id not in GUESSES:
         return jsonify({'error': 'Sessão inválida para aprendizado.'}), 400
 
-    data = request.get_json()
+    data = get_json_body()
+    if data is None:
+        return jsonify({'error': 'Corpo da requisição deve ser JSON válido.'}), 400
     character = (data.get('character') or '').strip()
     emoji = (data.get('emoji') or '🎭').strip() or '🎭'
     question_text = (data.get('question') or '').strip()
@@ -278,14 +289,20 @@ def learn():
 
 @app.route('/eth_balance', methods=['POST'])
 def eth_balance():
-    data = request.get_json()
-    address = data.get('address', '').strip()
+    data = get_json_body()
+    if data is None:
+        return jsonify({'error': 'Corpo da requisição deve ser JSON válido.'}), 400
+    address = (data.get('address') or '').strip()
     if not w3.is_address(address):
         return jsonify({'error': 'Endereço Ethereum inválido'}), 400
-    balance = w3.eth.get_balance(address)
+    try:
+        balance = w3.eth.get_balance(address)
+    except Exception:
+        return jsonify({'error': 'Erro ao consultar o provedor Ethereum. Tente novamente mais tarde.'}), 502
     eth = w3.from_wei(balance, 'ether')
     return jsonify({'balance': str(eth)})
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    debug = os.getenv('FLASK_DEBUG', 'false').lower() in ('1', 'true', 'yes')
+    app.run(debug=debug)

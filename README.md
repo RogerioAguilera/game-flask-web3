@@ -40,6 +40,7 @@ Variáveis disponíveis em `.env`:
 |---------------------|----------------------------------------------------------------------------|--------------------------------------------------|
 | `SECRET_KEY`        | Chave usada pelo Flask para assinar a sessão do jogo.                     | `supersecretkey` (troque em produção)             |
 | `WEB3_PROVIDER_URL` | URL do provedor RPC Ethereum (Sepolia testnet). Aceita Infura/Alchemy/etc. | `https://ethereum-sepolia-rpc.publicnode.com`     |
+| `FLASK_DEBUG`       | Ativa o modo debug do Flask (debugger interativo do Werkzeug). Deixe desligado em produção — o debugger permite execução de código se exposto. | `false`                                           |
 
 ## Executando
 
