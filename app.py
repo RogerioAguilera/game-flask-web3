@@ -3,11 +3,15 @@ from web3 import Web3
 from dotenv import load_dotenv
 import os
 import json
+import secrets
+from scoreboard import scoreboard
 
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env.scoreboard'))
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'supersecretkey')
+app.register_blueprint(scoreboard)
 
 # Sepolia testnet by default (public RPC, no API key required).
 # Override with WEB3_PROVIDER_URL to point at Infura/Alchemy or another network.
@@ -120,6 +124,9 @@ def index():
 def start_game():
     global QUESTIONS, GUESSES
     QUESTIONS, GUESSES = load_data()
+    for key in ('last_guess_id', 'last_parent_q', 'last_parent_dir', 'result_correct'):
+        session.pop(key, None)
+    session['game_id'] = secrets.token_hex(32)
     session['current_q'] = 1
     session['steps'] = 0
     return jsonify({'question': QUESTIONS[1]['question'], 'steps': 0})
@@ -175,7 +182,11 @@ def feedback():
     if not isinstance(correct, bool):
         return jsonify({'error': 'Campo "correct" deve ser booleano.'}), 400
 
+    if 'result_correct' in session:
+        return jsonify({'error': 'Resultado já confirmado.'}), 409
+
     record_guess_feedback(guess_id, correct)
+    session['result_correct'] = correct
     return jsonify({'success': True})
 
 

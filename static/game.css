@@ -30,3 +30,4 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible{o
     .game-footer{margin-top:12px;padding-top:8px}
     #ethCard summary{padding:12px 22px}
 }
+#registerResult[hidden]{display:none}#chainStatus{max-width:100%;overflow-wrap:anywhere;color:var(--muted);font-size:.9rem;line-height:1.5}#chainStatus:empty{display:none}

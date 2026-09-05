@@ -318,6 +318,8 @@
                 <button class="btn btn-wrong"   onclick="markWrong()">✗ Errou!</button>
             </div>
             <p id="feedbackMsg"></p>
+            <button class="btn btn-primary" id="registerResult" hidden onclick="recordOnChain()">Registrar resultado na Anvil</button>
+            <p id="chainStatus" role="status"></p>
 
             <!-- Learn form: shown after wrong guess -->
             <div id="learnForm" style="display:none;width:100%;margin-top:4px;text-align:left;">
@@ -386,6 +388,7 @@
 
     // ── Game flow ──
     function startGame() {
+        resetScoreboard();
         history = [];
         feedbackGiven = false;
         document.getElementById('btnYes').disabled = false;
@@ -483,11 +486,14 @@
     }
 
     function sendFeedback(correct) {
-        fetch('/feedback', {
+        feedbackRequest = fetch('/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ correct })
-        }).catch(() => {});
+        }).then(r => r.ok).catch(() => false);
+        if (scoreboardConfig && scoreboardConfig.enabled) {
+            document.getElementById('registerResult').hidden = false;
+        }
     }
 
     function markCorrect() {
@@ -577,15 +583,22 @@
     // ── History ──
     function renderHistory() {
         const list = document.getElementById('historyList');
-        list.innerHTML = history.map(h => {
+        list.replaceChildren();
+        history.forEach(h => {
+            const item = document.createElement('li');
             if (h.guess) {
-                return `<li class="hist-guess">🎯 ${h.guess}</li>`;
+                item.className = 'hist-guess';
+                item.textContent = '🎯 ' + h.guess;
+            } else {
+                const question = document.createElement('span');
+                question.textContent = h.q;
+                const badge = document.createElement('span');
+                badge.className = 'hist-badge ' + (h.a === 'yes' ? 'hist-yes' : 'hist-no');
+                badge.textContent = h.a === 'yes' ? 'Sim' : 'Não';
+                item.append(question, badge);
             }
-            const badge = h.a === 'yes'
-                ? '<span class="hist-badge hist-yes">Sim</span>'
-                : '<span class="hist-badge hist-no">Não</span>';
-            return `<li><span>${h.q}</span>${badge}</li>`;
-        }).join('');
+            list.appendChild(item);
+        });
     }
 
     // ── Confetti ──
@@ -653,5 +666,6 @@
         .catch(() => { result.textContent = 'Erro de comunicação.'; result.className = 'err'; });
     }
 </script>
+<script src="{{ url_for('static', filename='scoreboard.js') }}"></script>
 </body>
 </html>

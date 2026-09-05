@@ -15,6 +15,8 @@ ENV/
 
 # Claude Code (personal skills/config, not project-related)
 .claude/
+.codex/
+.agents/
 
 # Mac/Linux
 .DS_Store
@@ -26,6 +28,8 @@ test.log
 # Env
 .env
 *.env
+.env.*
+!.env.example
 
 # Byte-compiled / optimized / DLL files
 *.so
@@ -40,6 +44,37 @@ Thumbs.db
 instance/
 *.db
 
-# Ignore secrets
+# Local game data
 questions.json
 stats.json
+
+# Foundry build artifacts
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# Test and coverage caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local database files
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Local Anvil state and wallet files
+anvil-state*.json
+anvil-state*.json.gz
+keystores/
+contracts/keystores/
+
+# Generated design references (runtime assets belong in static/)
+output/imagegen/
