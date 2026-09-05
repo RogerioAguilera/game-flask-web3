@@ -50,7 +50,7 @@ python3 app.py
 
 A aplicação sobe em modo debug em [http://localhost:5000](http://localhost:5000).
 
-> Como as perguntas ficam carregadas em memória, reinicie o servidor sempre que `questions.json` for editado manualmente (fora do fluxo de aprendizado do próprio jogo).
+> As perguntas de `questions.json` são recarregadas ao iniciar cada partida. Após editar o arquivo manualmente, inicie uma nova partida para usar os dados atualizados.
 
 ## Como jogar
 

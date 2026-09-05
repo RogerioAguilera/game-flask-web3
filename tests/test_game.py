@@ -1,3 +1,23 @@
+import json
+from pathlib import Path
+
+import app as app_module
+
+
+def test_start_game_reloads_questions_from_disk(client):
+    client.post("/start_game")
+    path = Path(app_module.QUESTIONS_FILE)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["questions"][0]["question"] = "Seu personagem é russo?"
+    data["guesses"][0]["guess"] = "Andrey Arshavin"
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    response = client.post("/start_game")
+    assert response.get_json()["question"] == "Seu personagem é russo?"
+    response = client.post("/answer", json={"answer": "yes"})
+    assert response.get_json()["guess"] == "Andrey Arshavin"
+
+
 def test_start_game_returns_first_question(client):
     r = client.post("/start_game")
     assert r.status_code == 200

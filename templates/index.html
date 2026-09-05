@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web3 Adivinhador</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
         :root {
             --purple-dark: #050810;
@@ -279,44 +276,34 @@
         /* ── Utils ── */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='game.css') }}">
 </head>
 <body>
 
-<header>
-    <img src="https://cdn-icons-png.flaticon.com/512/616/616494.png" alt="Gênio">
-    <h1>Web3 Adivinhador</h1>
-    <p>O gênio que lê sua mente — e a blockchain</p>
+<header class="site-header">
+    <a class="brand" href="/">Web3 Adivinhador <span class="brand-gem" aria-hidden="true">◈</span></a>
+    <details class="site-menu"><summary aria-label="Abrir menu">☰</summary><nav><a href="#ethCard">Consultar saldo</a><button onclick="startGame()">Nova partida</button></nav></details>
 </header>
-
 <main>
-
-    <!-- ── Score bar ── -->
-    <div id="scorebar">
-        <div>🏆 Acertos: <span id="scoreWins">0</span> / <span id="scoreTotal">0</span></div>
-        <div class="score-right">
-            <span><kbd class="kbd">S</kbd> Sim &nbsp;<kbd class="kbd">N</kbd> Não</span>
-            <span><kbd class="kbd">Enter</kbd> Iniciar</span>
-        </div>
-    </div>
-
     <!-- ── Jogo ── -->
     <div class="card" id="gameCard">
+        <div class="wizard" role="img" aria-label="Gênio holográfico"></div>
 
         <!-- Idle -->
         <div class="state active" id="idleState">
-            <div class="crystal">🔮</div>
+            <h2>Em quem você está pensando?</h2>
             <p>Pense em um personagem famoso — real ou fictício — e eu tentarei adivinhar quem é!</p>
             <button class="btn btn-primary" onclick="startGame()">✨ Iniciar Jogo</button>
         </div>
 
         <!-- Question -->
         <div class="state" id="questionState">
-            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
             <span class="step-label" id="stepLabel">Pergunta 1</span>
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
             <p id="questionText"></p>
             <div class="answer-btns">
-                <button class="btn btn-yes" id="btnYes" onclick="sendAnswer('yes')">✔ Sim &nbsp;<kbd class="kbd" style="font-size:.65rem;opacity:.6">S</kbd></button>
-                <button class="btn btn-no"  id="btnNo"  onclick="sendAnswer('no')"> ✘ Não &nbsp;<kbd class="kbd" style="font-size:.65rem;opacity:.6">N</kbd></button>
+                <button class="btn btn-yes" id="btnYes" onclick="sendAnswer('yes')">Sim <kbd class="kbd" style="font-size:.65rem;opacity:.6">S</kbd></button>
+                <button class="btn btn-no"  id="btnNo"  onclick="sendAnswer('no')">Não <kbd class="kbd" style="font-size:.65rem;opacity:.6">N</kbd></button>
             </div>
         </div>
 
@@ -356,6 +343,11 @@
             <button class="btn btn-ghost" onclick="startGame()">↩ Jogar Novamente &nbsp;<kbd class="kbd" style="font-size:.65rem;opacity:.6">Enter</kbd></button>
         </div>
 
+        <div class="game-footer">
+            <button class="footer-action" onclick="startGame()">↻ <span>Reiniciar</span></button>
+            <button class="footer-action" id="historyToggle" aria-controls="historyPanel" aria-expanded="false" onclick="toggleHistory()">◷ <span>Histórico</span></button>
+            <div id="scorebar">Acertos: <span id="scoreWins">0</span> de <span id="scoreTotal">0</span></div>
+        </div>
     </div>
 
     <!-- ── Histórico ── -->
@@ -365,14 +357,16 @@
     </details>
 
     <!-- ── Ethereum ── -->
-    <div class="card" id="ethCard">
-        <h2>⬡ Consultar Saldo Ethereum</h2>
+    <details class="card" id="ethCard">
+        <summary><span aria-hidden="true">◈</span> Consultar saldo Ethereum <span class="chevron" aria-hidden="true">⌄</span></summary>
+        <div class="eth-content">
         <div class="eth-row">
             <input class="eth-input" type="text" id="ethAddress" placeholder="0x... endereço Ethereum" aria-label="Endereço Ethereum">
             <button class="btn btn-eth" onclick="getBalance()">Consultar</button>
         </div>
-        <p id="ethResult"></p>
-    </div>
+        <p id="ethResult" role="status"></p>
+        </div>
+    </details>
 
 </main>
 
@@ -424,7 +418,7 @@
         el.classList.add('dim');
 
         setTimeout(() => {
-            el.innerHTML = text;
+            el.textContent = text;
             el.classList.remove('dim');
         }, 220);
 
@@ -525,7 +519,8 @@
         const character = document.getElementById('learnCharacter').value.trim();
         const emoji     = document.getElementById('learnEmoji').value.trim() || '🎭';
         const question  = document.getElementById('learnQuestion').value.trim();
-        const answer    = document.querySelector('input[name="learnAnswer"]:checked')?.value;
+        const selectedAnswer = document.querySelector('input[name="learnAnswer"]:checked');
+        const answer = selectedAnswer ? selectedAnswer.value : undefined;
         const result    = document.getElementById('learnResult');
 
         if (!character || !question || !answer) {
@@ -569,6 +564,16 @@
         document.getElementById('scoreTotal').textContent = total;
     }
 
+    function toggleHistory() {
+        const panel = document.getElementById('historyPanel');
+        renderHistory();
+        panel.style.display = 'block';
+        panel.open = !panel.open;
+    }
+    document.getElementById('historyPanel').addEventListener('toggle', e => {
+        document.getElementById('historyToggle').setAttribute('aria-expanded', String(e.target.open));
+    });
+
     // ── History ──
     function renderHistory() {
         const list = document.getElementById('historyList');
@@ -608,7 +613,7 @@
 
     // ── Keyboard shortcuts ──
     document.addEventListener('keydown', e => {
-        if (e.target.tagName === 'INPUT') return;
+        if (['INPUT', 'TEXTAREA', 'BUTTON', 'SUMMARY', 'A'].includes(e.target.tagName) || e.repeat) return;
         const key = e.key.toLowerCase();
 
         const idle     = document.getElementById('idleState').classList.contains('active');

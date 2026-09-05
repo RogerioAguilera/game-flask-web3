@@ -27,8 +27,9 @@ def network():
         'latest_block': w3.eth.block_number,
     })
 
-QUESTIONS_FILE = os.getenv('QUESTIONS_FILE', 'questions.json')
-STATS_FILE = os.getenv('STATS_FILE', 'stats.json')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+QUESTIONS_FILE = os.getenv('QUESTIONS_FILE', os.path.join(BASE_DIR, 'questions.json'))
+STATS_FILE = os.getenv('STATS_FILE', os.path.join(BASE_DIR, 'stats.json'))
 
 
 def load_data():
@@ -117,6 +118,8 @@ def index():
 
 @app.route('/start_game', methods=['POST'])
 def start_game():
+    global QUESTIONS, GUESSES
+    QUESTIONS, GUESSES = load_data()
     session['current_q'] = 1
     session['steps'] = 0
     return jsonify({'question': QUESTIONS[1]['question'], 'steps': 0})
