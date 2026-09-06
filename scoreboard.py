@@ -6,6 +6,7 @@ from eth_account import Account
 from eth_account.messages import encode_defunct
 from flask import Blueprint, current_app, jsonify, request, session
 from web3 import Web3
+from scoreboard_network import network_configuration
 
 scoreboard = Blueprint('scoreboard', __name__)
 
@@ -21,13 +22,21 @@ def configuration():
 @scoreboard.get('/scoreboard/config')
 def config():
     address, _, enabled = configuration()
+    try:
+        network = network_configuration()
+    except ValueError as error:
+        return jsonify(enabled=False, error=str(error)), 503
     return jsonify(enabled=enabled, address=address if enabled else None,
-                   chainId='0x7a69', chainName='Anvil local', rpcUrl='http://127.0.0.1:8545')
+                   chainId=hex(network['chain_id']), chainName=network['name'], rpcUrl=network['rpc_url'])
 
 
 @scoreboard.post('/scoreboard/transaction')
 def transaction():
     address, key, enabled = configuration()
+    try:
+        network = network_configuration()
+    except ValueError as error:
+        return jsonify(error=str(error)), 503
     if not enabled:
         return jsonify(error='Placar local não configurado.'), 503
     if 'result_correct' not in session or not session.get('game_id'):
@@ -43,7 +52,7 @@ def transaction():
     correct, questions = session['result_correct'], session['steps']
     payload = Web3.keccak(encode(
         ['uint256', 'address', 'address', 'bytes32', 'bool', 'uint256', 'uint256'],
-        [31337, address, player, game_id, correct, questions, deadline]))
+        [network['chain_id'], address, player, game_id, correct, questions, deadline]))
     try:
         signature = Account.sign_message(encode_defunct(primitive=payload), key)
     except (ValueError, TypeError):
@@ -53,4 +62,4 @@ def transaction():
             signature.r.to_bytes(32, 'big'), signature.s.to_bytes(32, 'big')]
     selector = Web3.keccak(text='recordResult(bytes32,bool,uint256,uint256,uint8,bytes32,bytes32)')[:4]
     return jsonify(to=address, data='0x' + (selector + encode(types, args)).hex(),
-                   chainId='0x7a69', value='0x0')
+                   chainId=hex(network['chain_id']), value='0x0')

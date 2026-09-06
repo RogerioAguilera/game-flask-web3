@@ -2,7 +2,7 @@
 
 Jogo de adivinhação feito em Flask. Pense em um personagem, responda às perguntas de Sim/Não e confirme o palpite do gênio. Quando ele erra, você pode ensinar um novo personagem.
 
-O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato inteligente, para desenvolvimento na rede local Anvil. O jogo funciona sem carteira e sem blockchain.
+O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato inteligente, para desenvolvimento em Ganache ou Anvil locais. O jogo funciona sem carteira e sem blockchain.
 
 ## O que está implementado
 
@@ -14,7 +14,7 @@ O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato int
 - Consulta de saldo de ETH pelo endereço público da carteira, na Sepolia por padrão.
 - Contrato Solidity que registra partidas, acertos do gênio e perguntas acumuladas por carteira.
 - Autorização de resultados pelo Flask e envio da transação pela carteira do jogador.
-- Testes Python, Solidity, carteira simulada e integração com Anvil.
+- Testes Python, Solidity, carteira simulada e integração com uma blockchain local.
 
 ## Tecnologias e organização
 
@@ -24,7 +24,7 @@ O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato int
 | Interface | HTML, CSS e JavaScript; estilos base no template e personalização em `static/game.css` |
 | Ethereum | Web3.py para consultas, implantação e preparação de transações |
 | Contrato | Solidity 0.8.24, compilado e testado com Forge |
-| Rede local | Anvil, parte do Foundry |
+| Rede local | Ganache por padrão; Anvil também suportado |
 | Carteira | Provedor Ethereum do navegador, como MetaMask |
 | Persistência | Arquivos JSON locais; ainda não há banco de dados |
 
@@ -32,6 +32,7 @@ O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato int
 game-flask/
 ├── app.py                         # Jogo, aprendizado, estatísticas e consulta Ethereum
 ├── scoreboard.py                  # Configuração e autorização do placar on-chain
+├── scoreboard_network.py          # RPC, Chain ID e nome da rede local
 ├── templates/index.html           # Interface e JavaScript do jogo
 ├── static/
 │   ├── game.css                   # Visual responsivo
@@ -42,7 +43,7 @@ game-flask/
 │   ├── src/GameScoreboard.sol     # Contrato do placar
 │   └── test/GameScoreboard.t.sol  # Testes Solidity
 ├── scripts/
-│   ├── deploy_scoreboard.py       # Compila e implanta na Anvil da porta 8545
+│   ├── deploy_scoreboard.py       # Compila e implanta no Ganache ou Anvil
 │   ├── check_scoreboard.py        # Integração em rede descartável na porta 18545
 │   └── simulate_games.py          # Simulação de partidas
 ├── tests/                         # Testes Flask e carteira simulada
@@ -118,7 +119,10 @@ O contador da interface é mantido em memória no navegador e reinicia ao recarr
 | `QUESTIONS_FILE` | Caminho da base de perguntas | `questions.json` na pasta de `app.py` |
 | `STATS_FILE` | Caminho das estatísticas | `stats.json` na pasta de `app.py` |
 | `WEB3_PROVIDER_URL` | RPC usado pela consulta de saldo e `/network` | `https://ethereum-sepolia-rpc.publicnode.com` |
-| `SCOREBOARD_ADDRESS` | Endereço do contrato na Anvil | Vazio: placar desabilitado |
+| `SCOREBOARD_RPC_URL` | RPC local compartilhado pelo deploy e carteira | `http://127.0.0.1:7545` |
+| `SCOREBOARD_CHAIN_ID` | Chain ID usado para assinar e enviar transações | `1337` |
+| `SCOREBOARD_CHAIN_NAME` | Nome da rede exibido na interface | `Ganache local` |
+| `SCOREBOARD_ADDRESS` | Endereço do contrato na rede local | Vazio: placar desabilitado |
 | `SCOREBOARD_SIGNER_KEY` | Chave dedicada do servidor para autorizar resultados | Vazio: placar desabilitado |
 
 Prioridade de configuração: **variáveis exportadas no terminal → `.env.scoreboard` → `.env` → padrões do código**. O script de implantação gera `.env.scoreboard` com uma chave de sessão aleatória, uma chave de assinatura dedicada e o endereço do contrato. Ele reutiliza as chaves desse arquivo nas próximas implantações e atualiza o endereço.
@@ -129,7 +133,7 @@ Prioridade de configuração: **variáveis exportadas no terminal → `.env.scor
 
 Expanda **Consultar saldo Ethereum**, informe um endereço público `0x...` e clique em **Consultar**. A consulta não exige conectar a carteira: o Flask solicita o saldo ao RPC, converte wei para ETH e devolve o resultado.
 
-A configuração padrão consulta **Sepolia**, uma rede de testes. Não inclui tokens como USDT nem NFTs. Essa consulta é independente do placar: configurar Anvil para registrar partidas não altera `WEB3_PROVIDER_URL`.
+A configuração padrão consulta **Sepolia**, uma rede de testes. Não inclui tokens como USDT nem NFTs. Essa consulta é independente do placar: configurar Ganache ou Anvil para registrar partidas não altera `WEB3_PROVIDER_URL`.
 
 ## Placar em contrato inteligente
 
@@ -147,9 +151,36 @@ Após uma partida concluída e seu feedback, o Flask prepara uma autorização a
 
 **É um protótipo local:** a confirmação de acerto vem do jogador. A assinatura protege os campos autorizados pelo servidor, mas não prova habilidade nem impede feedback falso ou múltiplas sessões. Não há tokens, NFTs, recompensas financeiras ou ranking competitivo.
 
-### Iniciar a rede e implantar
+### Iniciar Ganache e implantar
 
-Pré-requisitos adicionais: [Foundry](https://getfoundry.sh/) instalado e carteira Ethereum no navegador. Forge pode precisar de internet no primeiro build para baixar o compilador Solidity.
+Abra seu workspace no Ganache e confira o servidor RPC. Os padrões do projeto são `http://127.0.0.1:7545` e Chain ID `1337`. O **Network ID** exibido no Ganache (frequentemente `5777`) é diferente do **Chain ID**, obtido por `eth_chainId`.
+
+Se usar Ganache CLI já instalado, execute em um terminal:
+
+```bash
+ganache --server.host 127.0.0.1 --server.port 7545 --chain.chainId 1337
+```
+
+Com [Foundry](https://getfoundry.sh/) instalado, execute na pasta do projeto:
+
+```bash
+.venv/bin/python scripts/deploy_scoreboard.py --network ganache
+.venv/bin/python app.py
+```
+
+O script verifica o Chain ID antes de implantar e usa a primeira conta local desbloqueada. Forge pode precisar de internet no primeiro build para baixar o compilador. O contrato usa o alvo EVM Paris, evitando a instrução PUSH0 para compatibilidade com Ganache anterior a Shanghai.
+
+Para um workspace com outra porta ou Chain ID:
+
+```bash
+.venv/bin/python scripts/deploy_scoreboard.py --network ganache --rpc-url http://127.0.0.1:7545 --chain-id 1337
+```
+
+Substitua os valores pelos do workspace. O script informa o Chain ID recebido se houver divergência. Os parâmetros explícitos têm prioridade na implantação. Sem parâmetros, ele usa as variáveis de ambiente e arquivos de configuração; os padrões novos são do Ganache.
+
+O endereço do contrato, RPC, Chain ID, nome da rede e chaves locais são salvos em `.env.scoreboard`, sem imprimir segredos. Reinicie Flask após implantar. Remova variáveis `SCOREBOARD_*` antigas exportadas no terminal caso elas sobrescrevam esse arquivo. Ao migrar de Anvil para Ganache, use `--network ganache` e implante novamente: os registros do Anvil não são transferidos.
+
+### Alternativa: Anvil
 
 Terminal 1:
 
@@ -158,33 +189,45 @@ export PATH="$HOME/.foundry/bin:$PATH"
 anvil --host 127.0.0.1
 ```
 
-Terminal 2, na pasta do projeto:
+Terminal 2:
 
 ```bash
-.venv/bin/python scripts/deploy_scoreboard.py
+.venv/bin/python scripts/deploy_scoreboard.py --network anvil
 .venv/bin/python app.py
 ```
 
-O script usa a primeira conta desbloqueada da Anvil para implantar e grava `.env.scoreboard` com permissões restritas. Ele não imprime as chaves privadas. Se o Flask já estiver rodando, pare-o e inicie novamente após a implantação.
+Esse preset grava RPC `http://127.0.0.1:8545`, Chain ID `31337` e nome `Anvil local`.
 
 ### Registrar pela carteira
 
-1. Use uma conta de teste da Anvil na carteira. As chaves exibidas pelo Anvil são públicas e servem **somente para desenvolvimento**, sem fundos reais.
+1. Use uma conta de teste da rede escolhida na carteira. Contas locais e chaves de desenvolvimento servem **somente para desenvolvimento**, sem fundos reais.
 2. Conclua uma partida e confirme **Acertou!** ou **Errou!**.
-3. Clique em **Registrar resultado na Anvil**.
+3. Clique em **Registrar resultado em Ganache local** (ou o nome da rede configurada).
 4. Autorize a conexão, selecione a rede local quando solicitado e confirme a transação usando ETH de teste.
 5. Aguarde a confirmação na tela; o hash também permite acompanhar a transação pela carteira.
 
 | Rede do placar | Valor |
 | --- | --- |
-| Nome | Anvil local |
-| RPC | `http://127.0.0.1:8545` |
-| Chain ID | `31337` |
+| Nome | Ganache local |
+| RPC | `http://127.0.0.1:7545` |
+| Chain ID | `1337` |
 | Moeda | ETH de teste |
 
-O placar atual está restrito a essa rede. O endereço de loopback se refere ao computador que executa o navegador: a configuração não oferece acesso automático à Anvil a partir de outro aparelho, como um celular.
+O placar aceita apenas RPCs locais (localhost, 127.0.0.1 ou ::1), com porta explícita. O endereço de loopback se refere ao computador que executa o navegador: a configuração não oferece acesso automático à rede local a partir de outro aparelho, como um celular.
 
-Ao reiniciar Anvil sem persistência, os registros desaparecem. Implante novamente e reinicie Flask. Uma nova implantação cria outro placar; ela não migra registros do contrato anterior.
+Ao reiniciar a rede sem persistência, os registros desaparecem. Implante novamente e reinicie Flask. Uma nova implantação cria outro placar; ela não migra registros do contrato anterior.
+
+### Persistir os dados do Ganache CLI
+
+Para guardar a blockchain local entre execuções, inicie o Ganache na raiz do projeto com:
+
+```bash
+ganache --server.host 127.0.0.1 --server.port 7545 --chain.chainId 1337 --database.dbPath ./ganache-data
+```
+
+Encerre a instância anterior antes de usar a mesma porta. Nas próximas execuções, use o mesmo comando e diretório. Preserve também as contas do workspace e `.env.scoreboard`; enquanto o contrato existir na rede persistida, não é necessário implantá-lo novamente. Esse comando não migra os dados de uma instância anterior iniciada sem persistência.
+
+A pasta `ganache-data/` na raiz está no `.gitignore`. Ela contém dados locais da blockchain e não deve ser publicada. Se escolher outro diretório dentro do repositório, adicione seu caminho ao `.gitignore` antes de commitar.
 
 ### Consultar os totais
 
@@ -192,7 +235,7 @@ Substitua os dois endereços:
 
 ```bash
 export PATH="$HOME/.foundry/bin:$PATH"
-cast call ENDERECO_DO_CONTRATO 'scores(address)(uint256,uint256,uint256)' ENDERECO_DA_CARTEIRA --rpc-url http://127.0.0.1:8545
+cast call ENDERECO_DO_CONTRATO 'scores(address)(uint256,uint256,uint256)' ENDERECO_DA_CARTEIRA --rpc-url http://127.0.0.1:7545
 ```
 
 A resposta contém partidas, acertos do gênio e perguntas acumuladas, nessa ordem.
@@ -256,12 +299,36 @@ O workflow atual do GitHub Actions executa apenas pytest em push e pull request 
 | Visual antigo | Atualize com `Ctrl+Shift+R`; reinicie Flask para carregar alterações de template |
 | `forge` ou `anvil` não encontrado | Adicione `$HOME/.foundry/bin` ao PATH |
 | Botão de registro ausente | Confira `.env.scoreboard`, reinicie Flask e confirme o palpite; `supersecretkey` desabilita o placar |
-| Contrato não encontrado | Verifique a rede da carteira e implante novamente após reiniciar Anvil |
+| Contrato não encontrado | Verifique a rede da carteira e implante novamente se a rede local tiver sido resetada |
 | Registro cancelado ou pendente | Consulte a carteira; enviar uma transação não significa que ela foi confirmada |
-| Saldo inesperado | Confira `WEB3_PROVIDER_URL`: Sepolia e Anvil têm saldos independentes |
+| Saldo inesperado | Confira `WEB3_PROVIDER_URL`: Sepolia, Ganache e Anvil têm saldos independentes |
 
 ## Versionamento e limites atuais
 
-Publique código, contratos, testes, `static/`, README e `.env.example`. O `.gitignore` exclui configurações privadas, ambientes virtuais, caches, bases locais, artefatos Foundry, estados locais da Anvil e referências em `output/imagegen/`. Arquivos já rastreados precisam ser retirados do índice para que uma nova regra de ignore tenha efeito.
+Publique código, contratos, testes, `static/`, README e `.env.example`, mantendo apenas valores fictícios ou vazios nesse modelo.
+
+O `.gitignore` mantém fora do repositório:
+
+| Arquivos ou diretórios | Motivo |
+| --- | --- |
+| `.env`, `.env.scoreboard` e demais `.env.*` (exceto `.env.example`) | Configurações privadas e chaves |
+| `.venv/`, `node_modules/` | Dependências instaladas localmente |
+| `.ganache/`, `ganache-data/` na raiz | Workspace e dados locais do Ganache |
+| `anvil-state*.json`, `anvil-state*.json.gz`, `keystores/` | Estado local da Anvil e arquivos de carteira |
+| `contracts/out/`, `contracts/cache/`, `contracts/broadcast/` | Compilação, cache e registros de implantação Foundry |
+| `questions.json`, `stats.json` | Base de personagens e estatísticas locais |
+| Caches Python, pytest e relatórios de cobertura | Arquivos gerados durante execução e testes |
+| `output/imagegen/` | Imagens de referência; os recursos usados pelo jogo ficam em `static/` |
+
+Confira `git status --short` antes do commit. Para verificar uma regra, use `git check-ignore -v CAMINHO_DO_ARQUIVO`. Arquivos já rastreados precisam ser retirados do índice com `git rm --cached` para que uma nova regra de ignore tenha efeito; isso mantém a cópia local, mas não remove versões do histórico anterior.
 
 A persistência JSON e o estado global do Flask ainda não foram preparados para gravações concorrentes por vários processos. O servidor iniciado por `app.py` é de desenvolvimento. Antes de publicar para múltiplos usuários, são próximos passos migrar a persistência, revisar autenticação/validação de resultados e configurar um servidor de produção. O suporte ao placar em redes públicas ainda não está implementado.
+
+Para executar a integração em um workspace Ganache **descartável**, após compilar o contrato:
+
+```bash
+.venv/bin/python scripts/check_scoreboard.py --rpc-url http://127.0.0.1:7545 --chain-id 1337
+```
+
+Esse teste implanta seu próprio contrato e envia transações de teste; não atualiza `.env.scoreboard`.
+Referências de configuração: [opções Ganache CLI](https://github.com/ConsenSys-archive/ganache) e [padrões do workspace Ganache](https://archive.trufflesuite.com/docs/ganache/reference/workspace-default-configuration/).

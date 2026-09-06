@@ -1,4 +1,4 @@
-/* Optional local Anvil integration through an injected Ethereum wallet. */
+/* Optional local blockchain integration through an injected Ethereum wallet. */
 let scoreboardConfig = null;
 let feedbackRequest = Promise.resolve(false);
 let scoreboardRun = 0;
@@ -33,10 +33,11 @@ async function recordOnChain() {
                     chainId: scoreboardConfig.chainId, chainName: scoreboardConfig.chainName,
                     rpcUrls: [scoreboardConfig.rpcUrl], nativeCurrency: {name: 'Ether de teste', symbol: 'ETH', decimals: 18}
                 }]});
+                await wallet.request({method: 'wallet_switchEthereumChain', params: [{chainId: scoreboardConfig.chainId}]});
             }
         }
         if (await wallet.request({method: 'eth_chainId'}) !== scoreboardConfig.chainId)
-            throw new Error('Selecione a rede Anvil local na carteira.');
+            throw new Error('Selecione a rede ' + scoreboardConfig.chainName + ' na carteira.');
         if (run !== scoreboardRun) return;
         const response = await fetch('/scoreboard/transaction', {
             method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({player})
@@ -56,7 +57,7 @@ async function recordOnChain() {
             const receipt = await wallet.request({method: 'eth_getTransactionReceipt', params: [hash]});
             if (receipt) {
                 if (receipt.status !== '0x1') throw new Error('Transação revertida. O resultado pode já estar registrado.');
-                update('Resultado registrado na Anvil! Transação: ' + hash);
+                update('Resultado registrado em ' + scoreboardConfig.chainName + '! Transação: ' + hash);
                 return;
             }
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -70,5 +71,6 @@ async function recordOnChain() {
 
 fetch('/scoreboard/config').then(r => r.json()).then(config => {
     scoreboardConfig = config;
+    if (config.enabled) document.getElementById('registerResult').textContent = 'Registrar resultado em ' + config.chainName;
     if (config.enabled && feedbackGiven) document.getElementById('registerResult').hidden = false;
 }).catch(() => {});

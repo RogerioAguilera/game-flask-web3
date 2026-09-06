@@ -1,4 +1,5 @@
 """Integration check against a disposable Anvil on port 18545 (no real game data)."""
+import argparse
 import json
 import os
 from pathlib import Path
@@ -12,8 +13,14 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
-    web3 = Web3(Web3.HTTPProvider('http://127.0.0.1:18545', request_kwargs={'timeout': 10}))
-    assert web3.eth.chain_id == 31337
+    from scoreboard_network import network_configuration
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--rpc-url', default='http://127.0.0.1:18545')
+    parser.add_argument('--chain-id', type=int, default=31337)
+    args = parser.parse_args()
+    network_configuration({'SCOREBOARD_RPC_URL': args.rpc_url, 'SCOREBOARD_CHAIN_ID': str(args.chain_id)})
+    web3 = Web3(Web3.HTTPProvider(args.rpc_url, request_kwargs={'timeout': 10}))
+    assert web3.eth.chain_id == args.chain_id
     key = Account.create().key.hex()
     artifact = json.loads((ROOT / 'contracts/out/GameScoreboard.sol/GameScoreboard.json').read_text())
     factory = web3.eth.contract(abi=artifact['abi'], bytecode=artifact['bytecode']['object'])
@@ -22,7 +29,8 @@ def main():
     assert receipt.status == 1
     board = web3.eth.contract(address=receipt.contractAddress, abi=artifact['abi'])
     with tempfile.TemporaryDirectory() as tmp:
-        os.environ.update(SCOREBOARD_SIGNER_KEY=key, SCOREBOARD_ADDRESS=receipt.contractAddress,
+        os.environ.update(SCOREBOARD_CHAIN_ID=str(args.chain_id), SCOREBOARD_RPC_URL=args.rpc_url,
+                          SCOREBOARD_CHAIN_NAME='Local integration', SCOREBOARD_SIGNER_KEY=key, SCOREBOARD_ADDRESS=receipt.contractAddress,
                           SECRET_KEY='integration-only-secret', QUESTIONS_FILE=tmp+'/questions.json', STATS_FILE=tmp+'/stats.json')
         Path(os.environ['QUESTIONS_FILE']).write_text(json.dumps({'questions': [{'id': 1, 'question': 'Herói?', 'yes': 2, 'no': 3}],
             'guesses': [{'id': 2, 'guess': 'Superman'}, {'id': 3, 'guess': 'Batman'}]}))
@@ -45,7 +53,7 @@ def main():
             tx['gas'] = 200000
             duplicate = web3.eth.wait_for_transaction_receipt(web3.eth.send_transaction(tx))
             assert duplicate.status == 0
-    print('OK: Flask authorization → Anvil transaction → score/event verified; replay rejected.')
+    print('OK: Flask authorization → local transaction → score/event verified; replay rejected.')
 
 
 if __name__ == '__main__':

@@ -76,5 +76,10 @@ anvil-state*.json.gz
 keystores/
 contracts/keystores/
 
+# Local Node dependencies and Ganache workspace data
+node_modules/
+/.ganache/
+/ganache-data/
+
 # Generated design references (runtime assets belong in static/)
 output/imagegen/
