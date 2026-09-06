@@ -279,6 +279,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='game.css') }}">
 </head>
 <body>
+<div class="parallax-bg" aria-hidden="true"></div>
 
 <header class="site-header">
     <a class="brand" href="/">Web3 Adivinhador <span class="brand-gem" aria-hidden="true">◈</span></a>
@@ -305,6 +306,11 @@
                 <button class="btn btn-yes" id="btnYes" onclick="sendAnswer('yes')">Sim <kbd class="kbd" style="font-size:.65rem;opacity:.6">S</kbd></button>
                 <button class="btn btn-no"  id="btnNo"  onclick="sendAnswer('no')">Não <kbd class="kbd" style="font-size:.65rem;opacity:.6">N</kbd></button>
             </div>
+            <div class="uncertain-answers">
+                <button class="btn btn-ghost" id="btnUnknown" onclick="sendAnswer('unknown')">Não sei</button>
+                <button class="btn btn-ghost" id="btnMaybe" onclick="sendAnswer('maybe')">Talvez</button>
+            </div>
+            <p class="uncertain-help">Não sei mantém as possibilidades; Talvez favorece Sim.</p>
         </div>
 
         <!-- Guess -->
@@ -345,6 +351,7 @@
             <button class="btn btn-ghost" onclick="startGame()">↩ Jogar Novamente &nbsp;<kbd class="kbd" style="font-size:.65rem;opacity:.6">Enter</kbd></button>
         </div>
 
+        <button class="btn btn-ghost" id="undoAnswer" onclick="undoAnswer()" hidden>↶ Voltar à pergunta anterior</button>
         <div class="game-footer">
             <button class="footer-action" onclick="startGame()">↻ <span>Reiniciar</span></button>
             <button class="footer-action" id="historyToggle" aria-controls="historyPanel" aria-expanded="false" onclick="toggleHistory()">◷ <span>Histórico</span></button>
@@ -356,6 +363,21 @@
     <details id="historyPanel">
         <summary>📋 Histórico da partida</summary>
         <ul id="historyList"></ul>
+    </details>
+
+    <details class="card" id="onchainPanel">
+        <summary>Placar na blockchain</summary>
+        <p id="scoreboardHealth" role="status">Verificando rede e contrato…</p>
+        <div class="scoreboard-actions">
+            <button class="btn btn-ghost" onclick="refreshScoreboard(true)">Conectar carteira</button>
+            <button class="btn btn-ghost" onclick="refreshScoreboard()">Atualizar placar</button>
+        </div>
+        <p id="scoreboardAccount"></p>
+        <dl id="scoreboardTotals" hidden>
+            <div><dt>Partidas</dt><dd id="chainGames">0</dd></div>
+            <div><dt>Acertos do gênio</dt><dd id="chainCorrect">0</dd></div>
+            <div><dt>Perguntas</dt><dd id="chainQuestions">0</dd></div>
+        </dl>
     </details>
 
     <!-- ── Ethereum ── -->
@@ -379,6 +401,50 @@
     let currentGuessName = '';
     let wins = 0, total = 0;
     let feedbackGiven = false;
+    let canLearn = true;
+    let gameRequestPending = false;
+    function syncUndoButton() {
+        const button = document.getElementById('undoAnswer');
+        button.hidden = feedbackGiven || !history.some(item => item.a);
+        button.disabled = gameRequestPending;
+    }
+
+    async function undoAnswer() {
+        if (gameRequestPending || feedbackGiven) return;
+        gameRequestPending = true;
+        syncUndoButton();
+        const controls = [...document.querySelectorAll('#gameCard button')];
+        const disabled = controls.map(button => button.disabled);
+        controls.forEach(button => button.disabled = true);
+        try {
+            const response = await fetch('/undo_answer', {method: 'POST'});
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Não foi possível voltar.');
+            if (history.length && history[history.length - 1].guess) {
+                history.pop();
+                total = Math.max(0, total - 1);
+                updateScore();
+            }
+            history.pop();
+            resetScoreboard();
+            canLearn = true;
+            currentQuestion = data.question;
+            currentGuessName = '';
+            show('questionState');
+            setQuestion(data.question, data.steps);
+            renderHistory();
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            controls.forEach((button, index) => button.disabled = disabled[index]);
+            gameRequestPending = false;
+            if (document.getElementById('questionState').classList.contains('active')) setAnswersDisabled(false);
+            syncUndoButton();
+        }
+    }
+    function setAnswersDisabled(disabled) {
+        document.querySelectorAll("#questionState button").forEach(button => button.disabled = disabled);
+    }
 
     // ── State machine ──
     function show(id) {
@@ -388,11 +454,14 @@
 
     // ── Game flow ──
     function startGame() {
+        if (gameRequestPending) return;
+        gameRequestPending = true;
         resetScoreboard();
         history = [];
         feedbackGiven = false;
-        document.getElementById('btnYes').disabled = false;
-        document.getElementById('btnNo').disabled = false;
+        canLearn = true;
+        syncUndoButton();
+        setAnswersDisabled(false);
         renderHistory();
         document.getElementById('historyPanel').style.display = 'none';
         document.getElementById('historyPanel').open = false;
@@ -413,7 +482,8 @@
                 show('questionState');
                 setQuestion(data.question, 0);
             })
-            .catch(() => alert('Erro ao iniciar o jogo.'));
+            .catch(() => alert('Erro ao iniciar o jogo.'))
+            .finally(() => { gameRequestPending = false; syncUndoButton(); });
     }
 
     function setQuestion(text, steps) {
@@ -431,12 +501,13 @@
     }
 
     function sendAnswer(answer) {
-        const btnY = document.getElementById('btnYes');
-        const btnN = document.getElementById('btnNo');
-        btnY.disabled = btnN.disabled = true;
+        if (gameRequestPending || document.getElementById('btnYes').disabled) return;
+        gameRequestPending = true;
+        syncUndoButton();
+        setAnswersDisabled(true);
 
         // Add to history
-        history.push({ q: currentQuestion, a: answer });
+        const answeredQuestion = currentQuestion;
 
         // Thinking dots
         document.getElementById('questionText').innerHTML =
@@ -449,23 +520,25 @@
         })
         .then(r => r.json())
         .then(data => {
+            if (data.question || data.guess) history.push({q: answeredQuestion, a: answer});
             if (data.question) {
                 currentQuestion = data.question;
                 setQuestion(data.question, data.steps);
-                btnY.disabled = btnN.disabled = false;
+                setAnswersDisabled(false);
             } else if (data.guess) {
+                canLearn = data.can_learn !== false;
                 total++;
                 updateScore();
                 showGuess(data.guess, data.emoji || '🔮', data.steps);
             } else {
                 alert(data.error || 'Erro inesperado.');
-                btnY.disabled = btnN.disabled = false;
+                setAnswersDisabled(false);
             }
         })
         .catch(() => {
             alert('Erro de comunicação.');
-            btnY.disabled = btnN.disabled = false;
-        });
+            setAnswersDisabled(false);
+        }).finally(() => { gameRequestPending = false; syncUndoButton(); });
     }
 
     function showGuess(guess, emoji, steps) {
@@ -491,14 +564,13 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ correct })
         }).then(r => r.ok).catch(() => false);
-        if (scoreboardConfig && scoreboardConfig.enabled) {
-            document.getElementById('registerResult').hidden = false;
-        }
+        syncRegisterButton();
     }
 
     function markCorrect() {
-        if (feedbackGiven) return;
+        if (feedbackGiven || gameRequestPending) return;
         feedbackGiven = true;
+        syncUndoButton();
         wins++;
         updateScore();
         sendFeedback(true);
@@ -509,11 +581,16 @@
     }
 
     function markWrong() {
-        if (feedbackGiven) return;
+        if (feedbackGiven || gameRequestPending) return;
         feedbackGiven = true;
+        syncUndoButton();
         sendFeedback(false);
         document.getElementById('feedbackBtns').style.display = 'none';
         document.getElementById('feedbackMsg').className = 'feedback-no';
+        if (!canLearn) {
+            document.getElementById('feedbackMsg').textContent = 'Havia respostas incertas. Jogue novamente com Sim e Não para ensinar um personagem.';
+            return;
+        }
         document.getElementById('feedbackMsg').textContent = '😅 Ops! Me ensine — quem era o personagem?';
 
         document.getElementById('learnQuestionLabel').textContent =
@@ -593,8 +670,8 @@
                 const question = document.createElement('span');
                 question.textContent = h.q;
                 const badge = document.createElement('span');
-                badge.className = 'hist-badge ' + (h.a === 'yes' ? 'hist-yes' : 'hist-no');
-                badge.textContent = h.a === 'yes' ? 'Sim' : 'Não';
+                badge.className = 'hist-badge ' + (h.a === 'yes' ? 'hist-yes' : h.a === 'no' ? 'hist-no' : 'hist-uncertain');
+                badge.textContent = {yes: 'Sim', no: 'Não', unknown: 'Não sei', maybe: 'Talvez'}[h.a];
                 item.append(question, badge);
             }
             list.appendChild(item);
@@ -667,5 +744,6 @@
     }
 </script>
 <script src="{{ url_for('static', filename='scoreboard.js') }}"></script>
+<script src="{{ url_for('static', filename='parallax.js') }}"></script>
 </body>
 </html>

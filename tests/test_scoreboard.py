@@ -1,3 +1,6 @@
+import os
+from types import SimpleNamespace
+import scoreboard as scoreboard_module
 import pytest
 from eth_abi import decode, encode
 from eth_account import Account
@@ -12,6 +15,20 @@ def configured(client, monkeypatch):
     monkeypatch.setenv('SCOREBOARD_SIGNER_KEY', key)
     monkeypatch.setenv('SCOREBOARD_ADDRESS', '0x' + '12' * 20)
     monkeypatch.setitem(app_module.app.config, 'SECRET_KEY', 'test-only-random-session-key')
+    class FakeEth:
+        @property
+        def chain_id(self):
+            return int(os.getenv('SCOREBOARD_CHAIN_ID', '1337'))
+
+        def get_code(self, address):
+            return b'\x60\x00'
+
+        def call(self, transaction):
+            if transaction['data'] == Web3.keccak(text='authority()')[:4]:
+                return encode(['address'], [Account.from_key(key).address])
+            return encode(['uint256'] * 3, [0, 0, 0])
+
+    monkeypatch.setattr(scoreboard_module, 'rpc_client', lambda url: SimpleNamespace(eth=FakeEth()))
     return client, key
 
 
@@ -28,7 +45,7 @@ def test_requires_completed_game(configured):
     assert client.post('/feedback', json={'correct': True}).status_code == 400
 
 
-@pytest.mark.parametrize("chain_id", [1337, 31337])
+@pytest.mark.parametrize("chain_id", [1337, 31337, 11155111])
 def test_signed_result_uses_server_values(configured, monkeypatch, chain_id):
     monkeypatch.setenv("SCOREBOARD_CHAIN_ID", str(chain_id))
     client, key = configured
@@ -73,3 +90,81 @@ def test_invalid_network_fails_closed(configured, monkeypatch, key, value):
     monkeypatch.setenv(key, value)
     assert client.get('/scoreboard/config').status_code == 503
     assert client.post('/scoreboard/transaction', json={}).status_code == 503
+
+
+@pytest.mark.parametrize('failure,message', [
+    ('offline', 'indisponível'), ('chain', 'Rede incorreta'), ('missing', 'Contrato não encontrado'),
+    ('authority', 'autoridade'), ('interface', 'incompatível')])
+def test_health_blocks_registration(configured, monkeypatch, failure, message):
+    client, _ = configured
+    fake = scoreboard_module.rpc_client('unused')
+    if failure == 'offline':
+        # Simulate a transport error specifically on the RPC call.
+        class Offline:
+            @property
+            def chain_id(self):
+                raise ConnectionError('offline')
+        fake.eth = Offline()
+    elif failure == 'chain':
+        fake.eth = SimpleNamespace(chain_id=1)
+    elif failure == 'missing':
+        fake.eth.get_code = lambda address: b''
+    elif failure == 'authority':
+        fake.eth.call = lambda tx: (encode(['address'], ['0x' + '56' * 20])
+                                   if tx['data'] == Web3.keccak(text='authority()')[:4]
+                                   else encode(['uint256'] * 3, [0, 0, 0]))
+    else:
+        fake.eth.call = lambda tx: b''
+    monkeypatch.setattr(scoreboard_module, 'rpc_client', lambda url: fake)
+    status = client.get('/scoreboard/config').json
+    assert status['ready'] is False and message in status['error']
+    client.post('/start_game')
+    client.post('/answer', json={'answer': 'yes'})
+    client.post('/feedback', json={'correct': True})
+    response = client.post('/scoreboard/transaction', json={'player': '0x' + '34' * 20})
+    assert response.status_code == 503 and 'data' not in response.json
+
+
+def test_scores_preserve_large_integers_and_zero(configured, monkeypatch):
+    client, _ = configured
+    player = '0x' + '34' * 20
+    zero = client.get('/scoreboard/scores/' + player)
+    assert zero.status_code == 200 and zero.json['games'] == '0'
+    fake = scoreboard_module.rpc_client('unused')
+    original = fake.eth.call
+    fake.eth.call = lambda tx: (original(tx) if tx['data'] == Web3.keccak(text='authority()')[:4]
+                               else encode(['uint256'] * 3, [2**60, 2**59, 2**64]))
+    monkeypatch.setattr(scoreboard_module, 'rpc_client', lambda url: fake)
+    data = client.get('/scoreboard/scores/' + player).json
+    assert data['games'] == str(2**60) and data['totalQuestions'] == str(2**64)
+    assert client.get('/scoreboard/scores/invalid').status_code == 400
+
+
+def test_sepolia_never_exposes_alchemy_key(configured, monkeypatch):
+    client, _ = configured
+    monkeypatch.setenv('SCOREBOARD_CHAIN_ID', '11155111')
+    monkeypatch.setenv('SCOREBOARD_CHAIN_NAME', 'Sepolia')
+    monkeypatch.setenv('SCOREBOARD_RPC_URL', 'https://eth-sepolia.g.alchemy.com/v2/private-test-token')
+    response = client.get('/scoreboard/config')
+    assert response.json['ready'] is True
+    assert response.json['rpcUrl'] == 'https://ethereum-sepolia-rpc.publicnode.com'
+    assert 'private-test-token' not in response.get_data(as_text=True)
+    class Offline:
+        @property
+        def chain_id(self):
+            raise ConnectionError('https://eth-sepolia.g.alchemy.com/v2/private-test-token')
+    monkeypatch.setattr(scoreboard_module, 'rpc_client', lambda url: SimpleNamespace(eth=Offline()))
+    response = client.get('/scoreboard/config')
+    assert response.json['ready'] is False
+    assert 'private-test-token' not in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize('chain,url', [
+    (1, 'https://eth-mainnet.g.alchemy.com/v2/test'),
+    (1, 'https://eth-sepolia.g.alchemy.com/v2/test'),
+    (11155111, 'http://eth-sepolia.g.alchemy.com/v2/test'),
+    (11155111, 'https://eth-sepolia.g.alchemy.com.attacker.example/v2/test')])
+def test_public_network_allowlist(chain, url):
+    from scoreboard_network import network_configuration
+    with pytest.raises(ValueError):
+        network_configuration({'SCOREBOARD_CHAIN_ID': str(chain), 'SCOREBOARD_RPC_URL': url})

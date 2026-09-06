@@ -57,3 +57,11 @@ def test_network_reports_connected(client, monkeypatch):
         "chain_id": 11155111,
         "latest_block": 999,
     }
+
+
+def test_network_hides_provider_api_key(client, monkeypatch):
+    monkeypatch.setattr(app_module, 'WEB3_PROVIDER_URL', 'https://eth-sepolia.g.alchemy.com/v2/private-test-token')
+    monkeypatch.setattr(app_module, 'w3', FakeW3())
+    response = client.get('/network')
+    assert response.json['provider'] == 'https://eth-sepolia.g.alchemy.com'
+    assert 'private-test-token' not in response.get_data(as_text=True)

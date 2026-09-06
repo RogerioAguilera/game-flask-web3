@@ -3,6 +3,7 @@ from web3 import Web3
 from dotenv import load_dotenv
 import os
 import json
+from urllib.parse import urlsplit
 import secrets
 from scoreboard import scoreboard
 
@@ -21,12 +22,17 @@ w3 = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
 
 @app.route('/network', methods=['GET'])
 def network():
+    # Expose only the provider origin; RPC paths may contain API keys.
+    provider_url = urlsplit(WEB3_PROVIDER_URL)
+    provider = f'{provider_url.scheme}://{provider_url.hostname}'
+    if provider_url.port:
+        provider += f':{provider_url.port}'
     connected = w3.is_connected()
     if not connected:
-        return jsonify({'connected': False, 'provider': WEB3_PROVIDER_URL}), 503
+        return jsonify({'connected': False, 'provider': provider}), 503
     return jsonify({
         'connected': True,
-        'provider': WEB3_PROVIDER_URL,
+        'provider': provider,
         'chain_id': w3.eth.chain_id,
         'latest_block': w3.eth.block_number,
     })
@@ -68,7 +74,7 @@ def save_stats():
 
 def record_question_answer(question_id, answer):
     entry = STATS['questions'].setdefault(str(question_id), {'yes': 0, 'no': 0})
-    entry[answer] += 1
+    entry[answer] = entry.get(answer, 0) + 1
     save_stats()
 
 
@@ -124,12 +130,58 @@ def index():
 def start_game():
     global QUESTIONS, GUESSES
     QUESTIONS, GUESSES = load_data()
-    for key in ('last_guess_id', 'last_parent_q', 'last_parent_dir', 'result_correct'):
+    for key in ('last_guess_id', 'last_parent_q', 'last_parent_dir', 'result_correct', 'uncertain_root', 'uncertain_answers', 'answer_history'):
         session.pop(key, None)
     session['game_id'] = secrets.token_hex(32)
     session['current_q'] = 1
     session['steps'] = 0
     return jsonify({'question': QUESTIONS[1]['question'], 'steps': 0})
+
+
+def uncertain_answer(current_q, user_answer, steps):
+    """Rank reachable paths, retaining both branches for uncertain answers."""
+    root = session.setdefault('uncertain_root', current_q)
+    answers = dict(session.get('uncertain_answers', {}))
+    answers[str(current_q)] = user_answer
+    session['uncertain_answers'] = answers
+    candidates = []
+
+    def walk(node_id, path, weight):
+        if node_id in GUESSES:
+            candidates.append((node_id, path, weight))
+            return
+        if node_id not in QUESTIONS or node_id in path:
+            return
+        for direction in ('yes', 'no'):
+            response = answers.get(str(node_id))
+            if response in ('yes', 'no') and response != direction:
+                continue
+            factor = (0.75 if direction == 'yes' else 0.25) if response == 'maybe' else 1
+            walk(QUESTIONS[node_id][direction], {**path, node_id: direction}, weight * factor)
+
+    walk(root, {}, 1)
+    if not candidates:
+        return jsonify({'error': 'Não encontrei possibilidades. Reinicie a partida.'}), 400
+    remaining = {}
+    for _, path, weight in candidates:
+        for qid, direction in path.items():
+            if str(qid) not in answers:
+                counts = remaining.setdefault(qid, {'yes': 0, 'no': 0})
+                counts[direction] += weight
+    if len({candidate[0] for candidate in candidates}) > 1 and remaining:
+        qid = max(remaining, key=lambda key: (
+            min(remaining[key].values()), sum(remaining[key].values())))
+        session['current_q'] = qid
+        return jsonify({'question': QUESTIONS[qid]['question'], 'steps': steps})
+    guess_id, _, _ = max(candidates, key=lambda candidate: candidate[2])
+    session['current_q'] = guess_id
+    session['last_guess_id'] = guess_id
+    session.pop('last_parent_q', None)
+    session.pop('last_parent_dir', None)
+    guess = GUESSES[guess_id]
+    record_guess_reached(guess_id)
+    return jsonify({'guess': guess['guess'], 'emoji': guess.get('emoji', '🔮'),
+                    'steps': steps, 'can_learn': False})
 
 
 @app.route('/answer', methods=['POST'])
@@ -144,13 +196,18 @@ def answer():
     if not q:
         return jsonify({'error': 'Jogo já finalizado ou pergunta inválida.'}), 400
 
-    next_id = q.get(user_answer)
-    if next_id is None:
-        return jsonify({'error': 'Resposta inválida. Use "yes" ou "no".'}), 400
+    next_id = q.get(user_answer) if isinstance(user_answer, str) else None
+    if user_answer not in ('yes', 'no', 'unknown', 'maybe'):
+        return jsonify({'error': 'Resposta inválida.'}), 400
 
+    trail = list(session.get('answer_history', []))
+    trail.append([current_q, user_answer, 'uncertain_root' in session])
+    session['answer_history'] = trail
     steps = session.get('steps', 0) + 1
     session['steps'] = steps
     record_question_answer(current_q, user_answer)
+    if user_answer in ('unknown', 'maybe') or 'uncertain_root' in session:
+        return uncertain_answer(current_q, user_answer, steps)
 
     next_q = QUESTIONS.get(next_id)
     if next_q:
@@ -167,6 +224,39 @@ def answer():
         return jsonify({'guess': guess['guess'], 'emoji': guess.get('emoji', '🔮'), 'steps': steps})
 
     return jsonify({'error': 'Personagem não encontrado.'}), 400
+
+
+@app.route('/undo_answer', methods=['POST'])
+def undo_answer():
+    if 'result_correct' in session:
+        return jsonify({'error': 'O resultado já foi confirmado. Inicie outra partida.'}), 409
+    trail = list(session.get('answer_history', []))
+    if not trail:
+        return jsonify({'error': 'Não há resposta para corrigir.'}), 400
+    qid, response, was_uncertain = trail[-1]
+    if qid not in QUESTIONS:
+        return jsonify({'error': 'As perguntas mudaram. Reinicie a partida.'}), 409
+    trail.pop()
+    session['answer_history'] = trail
+    session['current_q'] = qid
+    session['steps'] = max(0, session.get('steps', 0) - 1)
+    if was_uncertain:
+        answers = dict(session.get('uncertain_answers', {}))
+        answers.pop(str(qid), None)
+        session['uncertain_answers'] = answers
+    else:
+        session.pop('uncertain_root', None)
+        session.pop('uncertain_answers', None)
+    guess_id = session.pop('last_guess_id', None)
+    session.pop('last_parent_q', None)
+    session.pop('last_parent_dir', None)
+    counts = STATS['questions'].get(str(qid), {})
+    counts[response] = max(0, counts.get(response, 0) - 1)
+    if guess_id is not None:
+        counts = STATS['guesses'].get(str(guess_id), {})
+        counts['reached'] = max(0, counts.get('reached', 0) - 1)
+    save_stats()
+    return jsonify({'question': QUESTIONS[qid]['question'], 'steps': session['steps']})
 
 
 @app.route('/feedback', methods=['POST'])
@@ -197,12 +287,14 @@ def stats():
         q = QUESTIONS.get(int(qid_str))
         if not q:
             continue
-        asked = counts['yes'] + counts['no']
+        asked = sum(counts.get(value, 0) for value in ('yes', 'no', 'unknown', 'maybe'))
         yes_pct = (counts['yes'] / asked * 100) if asked else 0
         question_report.append({
             'id': q['id'],
             'question': q['question'],
             'asked': asked,
+            'unknown': counts.get('unknown', 0),
+            'maybe': counts.get('maybe', 0),
             'yes_pct': round(yes_pct, 1),
             'balance': round(abs(50 - yes_pct), 1),  # 0 = discrimina bem, 50 = quase nunca discrimina
         })

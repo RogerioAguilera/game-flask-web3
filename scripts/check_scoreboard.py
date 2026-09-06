@@ -36,6 +36,8 @@ def main():
             'guesses': [{'id': 2, 'guess': 'Superman'}, {'id': 3, 'guess': 'Batman'}]}))
         import app
         with app.app.test_client() as client:
+            assert client.get('/scoreboard/config').json['ready'] is True
+            assert client.get('/scoreboard/scores/' + player).json['games'] == '0'
             client.post('/start_game')
             client.post('/answer', json={'answer': 'yes'})
             client.post('/feedback', json={'correct': True})
@@ -48,6 +50,8 @@ def main():
             receipt = web3.eth.wait_for_transaction_receipt(web3.eth.send_transaction(tx))
             assert receipt.status == 1
             assert list(board.functions.scores(player).call()) == [1, 1, 1]
+            scores = client.get('/scoreboard/scores/' + player).json
+            assert [scores['games'], scores['correctGuesses'], scores['totalQuestions']] == ['1', '1', '1']
             events = board.events.ResultRecorded().process_receipt(receipt)
             assert events[0]['args']['player'] == player
             tx['gas'] = 200000

@@ -2,13 +2,16 @@
 
 Jogo de adivinhação feito em Flask. Pense em um personagem, responda às perguntas de Sim/Não e confirme o palpite do gênio. Quando ele erra, você pode ensinar um novo personagem.
 
-O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato inteligente, para desenvolvimento em Ganache ou Anvil locais. O jogo funciona sem carteira e sem blockchain.
+O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato inteligente, para desenvolvimento em Ganache/Anvil locais e na testnet pública Sepolia via Alchemy. O jogo funciona sem carteira e sem blockchain.
 
 ## O que está implementado
 
 - Árvore de decisão com perguntas e personagens em `questions.json`.
 - Aprendizado de personagens pela interface, com persistência local.
 - Recarga das perguntas ao iniciar cada partida.
+- Botão “Voltar à pergunta anterior” para corrigir respostas, inclusive após o palpite, antes de confirmar Acertou/Errou. A correção restaura as possibilidades e remove a resposta desfeita das estatísticas.
+- Respostas Sim, Não, Não sei e Talvez. Não sei preserva os ramos; Talvez dá peso maior ao Sim sem excluir o Não. Perguntas já respondidas não se repetem; quando acabam, o jogo escolhe o palpite de maior peso (empates seguem a ordem da árvore).
+- O aprendizado após um erro exige uma partida com respostas Sim/Não para alterar um ramo definido da árvore.
 - Interface responsiva para desktop e celular, com histórico, placar da sessão e atalhos de teclado.
 - Estatísticas locais de respostas e palpites, disponíveis em `/stats` como JSON.
 - Consulta de saldo de ETH pelo endereço público da carteira, na Sepolia por padrão.
@@ -24,7 +27,7 @@ O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato int
 | Interface | HTML, CSS e JavaScript; estilos base no template e personalização em `static/game.css` |
 | Ethereum | Web3.py para consultas, implantação e preparação de transações |
 | Contrato | Solidity 0.8.24, compilado e testado com Forge |
-| Rede local | Ganache por padrão; Anvil também suportado |
+| Redes do placar | Ganache por padrão; Anvil e Sepolia também suportados |
 | Carteira | Provedor Ethereum do navegador, como MetaMask |
 | Persistência | Arquivos JSON locais; ainda não há banco de dados |
 
@@ -32,7 +35,7 @@ O projeto inclui consulta de saldo Ethereum e um placar opcional em contrato int
 game-flask/
 ├── app.py                         # Jogo, aprendizado, estatísticas e consulta Ethereum
 ├── scoreboard.py                  # Configuração e autorização do placar on-chain
-├── scoreboard_network.py          # RPC, Chain ID e nome da rede local
+├── scoreboard_network.py          # RPC privado, RPC da carteira e Chain ID
 ├── templates/index.html           # Interface e JavaScript do jogo
 ├── static/
 │   ├── game.css                   # Visual responsivo
@@ -43,11 +46,11 @@ game-flask/
 │   ├── src/GameScoreboard.sol     # Contrato do placar
 │   └── test/GameScoreboard.t.sol  # Testes Solidity
 ├── scripts/
-│   ├── deploy_scoreboard.py       # Compila e implanta no Ganache ou Anvil
+│   ├── deploy_scoreboard.py       # Implantação local e prévia/envio na Sepolia
 │   ├── check_scoreboard.py        # Integração em rede descartável na porta 18545
 │   └── simulate_games.py          # Simulação de partidas
 ├── tests/                         # Testes Flask e carteira simulada
-├── .github/workflows/             # CI: testes Python em push/PR para main
+├── .github/workflows/             # CI: Python, carteira, Solidity e Ganache
 ├── .env.example                   # Modelo público de configuração
 ├── requirements.txt
 ├── requirements-dev.txt
@@ -119,15 +122,17 @@ O contador da interface é mantido em memória no navegador e reinicia ao recarr
 | `QUESTIONS_FILE` | Caminho da base de perguntas | `questions.json` na pasta de `app.py` |
 | `STATS_FILE` | Caminho das estatísticas | `stats.json` na pasta de `app.py` |
 | `WEB3_PROVIDER_URL` | RPC usado pela consulta de saldo e `/network` | `https://ethereum-sepolia-rpc.publicnode.com` |
-| `SCOREBOARD_RPC_URL` | RPC local compartilhado pelo deploy e carteira | `http://127.0.0.1:7545` |
+| `SCOREBOARD_RPC_URL` | RPC do servidor; na Sepolia a carteira recebe um RPC público separado | `http://127.0.0.1:7545` |
 | `SCOREBOARD_CHAIN_ID` | Chain ID usado para assinar e enviar transações | `1337` |
 | `SCOREBOARD_CHAIN_NAME` | Nome da rede exibido na interface | `Ganache local` |
-| `SCOREBOARD_ADDRESS` | Endereço do contrato na rede local | Vazio: placar desabilitado |
+| `SCOREBOARD_ADDRESS` | Endereço do contrato na rede escolhida | Vazio: placar desabilitado |
+| `SCOREBOARD_SEPOLIA_RPC_URL` | RPC privado Alchemy utilizado pelo preset `--network sepolia` | Vazio |
+| `SCOREBOARD_DEPLOYER_KEY` | Conta de teste que assina e paga a implantação na Sepolia | Vazio; usada apenas pelo script de implantação |
 | `SCOREBOARD_SIGNER_KEY` | Chave dedicada do servidor para autorizar resultados | Vazio: placar desabilitado |
 
-Prioridade de configuração do Flask: **variáveis exportadas no terminal → `.env.scoreboard` → `.env` → padrões do código**. O script de implantação gera `.env.scoreboard` com uma chave de sessão aleatória, uma chave de assinatura dedicada e o endereço do contrato. Ele reutiliza as chaves desse arquivo nas próximas implantações e atualiza o endereço. Para as chaves, o script de implantação usa o arquivo anterior ou gera novos valores; não importa chaves de `.env` ou do terminal. Evite exportar `SECRET_KEY` ou `SCOREBOARD_SIGNER_KEY` com valores diferentes dos gerados, pois o Flask dará prioridade a eles.
+Prioridade de configuração do Flask: **variáveis exportadas no terminal → `.env.scoreboard` → `.env` → padrões do código**. O script de implantação gera `.env.scoreboard` com uma chave de sessão aleatória, uma chave de assinatura dedicada e o endereço do contrato. O script respeita essa mesma prioridade para as chaves de assinatura e sessão, gerando valores quando faltam (ou substituindo a chave de sessão de exemplo). Ele reutiliza as chaves existentes e atualiza o endereço após uma implantação bem-sucedida. A chave de implantação fica no `.env` privado e não é copiada para `.env.scoreboard`.
 
-`.env.example` pode ser publicado como modelo, com valores fictícios ou vazios. Chaves privadas, segredos de sessão e URLs com tokens devem ficar nos arquivos locais ignorados pelo Git. A chave do servidor não é a chave da carteira do jogador.
+`.env.example` pode ser publicado como modelo, com valores fictícios ou vazios. Chaves privadas, segredos de sessão e URLs com tokens devem ficar nos arquivos locais ignorados pelo Git. A chave do servidor não é a chave da carteira do jogador nem a chave da conta de implantação.
 
 ## Consulta de saldo Ethereum
 
@@ -145,11 +150,13 @@ A configuração padrão consulta **Sepolia**, uma rede de testes. Não inclui t
 - Quantidade de palpites confirmados como corretos.
 - Total de perguntas dessas partidas.
 
-O contrato emite `ResultRecorded` a cada registro. A interface oferece o registro do resultado; a consulta aos totais on-chain pode ser feita com `cast`, conforme abaixo.
+O contrato emite `ResultRecorded` a cada registro. O painel **Placar na blockchain** mostra partidas, acertos do gênio e perguntas da carteira conectada. Clique em **Conectar carteira** para autorizar a consulta e em **Atualizar placar** para recarregar os dados. A página não solicita conexão automaticamente; ela consulta silenciosamente contas já autorizadas. Os totais também podem ser consultados com `cast`, conforme abaixo.
 
-Após uma partida concluída e seu feedback, o Flask prepara uma autorização assinada com validade de dez minutos, vinculada à carteira, partida, contrato e rede. A carteira envia a transação, e o contrato verifica a assinatura e impede reutilizar o mesmo identificador de partida. O site mostra os estados de envio, confirmação, cancelamento e erro.
+Ao carregar a página e atualizar o placar, o Flask verifica o Chain ID do RPC, a presença de código no endereço configurado, a interface de consulta e a autoridade de assinatura do contrato. Falhas deixam o registro desabilitado e mostram uma orientação no painel. A verificação é repetida antes de autorizar cada transação, com timeout de três segundos por chamada RPC e sem retries automáticos.
 
-**É um protótipo local:** a confirmação de acerto vem do jogador. A assinatura protege os campos autorizados pelo servidor, mas não prova habilidade nem impede feedback falso ou múltiplas sessões. Não há tokens, NFTs, recompensas financeiras ou ranking competitivo.
+Após uma partida concluída e seu feedback, o Flask prepara uma autorização assinada com validade de dez minutos, vinculada à carteira, partida, contrato e rede. A carteira envia a transação, e o contrato verifica a assinatura e impede reutilizar o mesmo identificador de partida. O site mostra os estados de envio, confirmação, cancelamento e erro. Após a confirmação, atualiza o placar. Ao trocar ou desconectar a conta, esconde os dados anteriores; respostas atrasadas não substituem o placar da nova carteira. A leitura usa a rede configurada no servidor, mesmo quando outra rede está selecionada na carteira. Para registrar, a carteira precisa mudar para a rede correta.
+
+**É um protótipo de testes:** a confirmação de acerto vem do jogador. A assinatura protege os campos autorizados pelo servidor, mas não prova habilidade nem impede feedback falso ou múltiplas sessões. Não há tokens, NFTs, recompensas financeiras ou ranking competitivo.
 
 ### Iniciar Ganache e implantar
 
@@ -200,6 +207,38 @@ Terminal 2:
 
 Esse preset grava RPC `http://127.0.0.1:8545`, Chain ID `31337` e nome `Anvil local`.
 
+### Sepolia via Alchemy
+
+Para usar a testnet pública, configure um aplicativo Ethereum Sepolia na Alchemy e coloque no **`.env` privado**:
+
+```dotenv
+SCOREBOARD_SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/SUA_API_KEY
+SCOREBOARD_DEPLOYER_KEY=SUA_CHAVE_PRIVADA_DE_TESTE_SEPOLIA
+```
+
+Use uma conta exclusiva para testes, com ETH **da Sepolia**, e mantenha sua chave diferente de `SCOREBOARD_SIGNER_KEY`. A conta de implantação paga o deploy; a autoridade de assinatura apenas autoriza resultados e não precisa de saldo. A carteira do jogador também precisa de ETH Sepolia para registrar partidas. Não compartilhe essas chaves nem as coloque no `.env.example`.
+
+Primeiro, prepare uma prévia sem enviar transações:
+
+```bash
+.venv/bin/python scripts/deploy_scoreboard.py --network sepolia
+```
+
+O script verifica o Chain ID, compila o contrato, calcula gas e limite de custo e consulta o saldo. Para enviar a implantação:
+
+```bash
+.venv/bin/python scripts/deploy_scoreboard.py --network sepolia --broadcast
+.venv/bin/python app.py
+```
+
+A implantação é assinada localmente e enviada como transação bruta; Alchemy não precisa disponibilizar contas desbloqueadas. O comando de envio recalcula a estimativa com as condições da rede naquele momento. Após confirmação, a configuração ativa passa a ser Sepolia em `.env.scoreboard`, e a configuração anterior é preservada em `.env.scoreboard.backup`. Reinicie Flask e atualize a página. Nenhum registro do Ganache é migrado.
+
+A URL privada Alchemy fica no servidor. `/scoreboard/config` fornece à carteira `https://ethereum-sepolia-rpc.publicnode.com`, sem chave de API. A carteira pode usar seu próprio RPC Sepolia já cadastrado. `/network` também omite caminhos e credenciais da URL do provedor. A consulta de saldo continua independente: para usar Alchemy nela, configure `WEB3_PROVIDER_URL` no `.env`.
+
+Se houver timeout após preparar o envio, o script preserva `.env.scoreboard.pending`, com hash, autoridade e configuração, e bloqueia outra implantação pública enquanto esse arquivo existir. Confira o hash no [explorador Sepolia](https://sepolia.etherscan.io). Se confirmou com sucesso, copie o endereço do contrato para `SCOREBOARD_ADDRESS` no arquivo pendente e use essa configuração como `.env.scoreboard`, preservando uma cópia da anterior. Se a transação foi revertida ou comprovadamente não foi enviada, remova apenas o arquivo pendente antes de tentar outra implantação. Não repita o envio de uma transação ainda pendente.
+
+A integração pública depende da sua configuração e saldo. Os testes automatizados não usam chaves Alchemy reais: validam assinatura, privacidade e preparação/envio por RPC simulado. A integração real do CI continua em Ganache descartável. Referência: [Ethereum Sepolia na Alchemy](https://www.alchemy.com/rpc/ethereum-sepolia).
+
 ### Registrar pela carteira
 
 1. Use uma conta de teste da rede escolhida na carteira. Contas locais e chaves de desenvolvimento servem **somente para desenvolvimento**, sem fundos reais.
@@ -215,7 +254,7 @@ Esse preset grava RPC `http://127.0.0.1:8545`, Chain ID `31337` e nome `Anvil lo
 | Chain ID | `1337` |
 | Moeda | ETH de teste |
 
-O placar aceita apenas RPCs locais (localhost, 127.0.0.1 ou ::1), com porta explícita. O endereço de loopback se refere ao computador que executa o navegador: a configuração não oferece acesso automático à rede local a partir de outro aparelho, como um celular.
+O placar aceita RPCs locais (localhost, 127.0.0.1 ou ::1) com porta explícita e os RPCs HTTPS Sepolia Alchemy/PublicNode com Chain ID `11155111`. RPCs públicos de mainnet não são aceitos. O endereço de loopback se refere ao computador que executa o navegador: a configuração não oferece acesso automático à rede local a partir de outro aparelho, como um celular.
 
 Ao reiniciar a rede sem persistência, os registros desaparecem. Implante novamente e reinicie Flask. Uma nova implantação cria outro placar; ela não migra registros do contrato anterior.
 
@@ -283,7 +322,15 @@ Esse teste implanta seu próprio contrato e envia transações de teste; não at
 
 Os testes Python e a integração usam perguntas e estatísticas temporárias, sem alterar a base real do jogo. A integração implanta um contrato, registra uma partida, consulta os totais/evento e verifica a rejeição de duplicação. Os testes da carteira usam um provedor simulado; não substituem uma conferência manual com a extensão real.
 
-O workflow atual do GitHub Actions executa apenas pytest em push e pull request para `main`. Os testes Foundry, carteira e integração são executados separadamente pelos comandos acima.
+O workflow `.github/workflows/tests.yml` executa automaticamente em push e pull request para `main`, além de permitir execução manual pela aba **Actions → Tests → Run workflow**.
+
+São três jobs independentes:
+
+- **pytest:** testes Python com Python 3.10.
+- **wallet:** testes da carteira simulada com Node.js 22.
+- **blockchain:** compilação e testes Solidity com Foundry v1.2.3, seguidos da integração Flask/contrato com Ganache 7.9.2.
+
+A integração inicia uma rede descartável em `127.0.0.1:18545` (Chain ID `1337`), espera o RPC responder e encerra o processo ao terminar, inclusive em caso de falha. Usa contas de teste e arquivos temporários; não exige secrets do GitHub nem publica o aplicativo ou contratos em redes públicas. O token do workflow tem apenas permissão de leitura do conteúdo. Os resultados ficam nos logs de cada job; execuções anteriores da mesma referência são canceladas quando uma nova começa.
 
 ## Rotas
 
@@ -297,7 +344,8 @@ O workflow atual do GitHub Actions executa apenas pytest em push e pull request 
 | GET | `/stats` | Relatório JSON de perguntas e palpites |
 | POST | `/eth_balance` | Consulta ETH do endereço em `{"address":"0x..."}` |
 | GET | `/network` | Verifica o RPC da consulta de saldo |
-| GET | `/scoreboard/config` | Configuração pública do placar, sem chave privada |
+| GET | `/scoreboard/config` | Configuração pública, estado `ready` e diagnóstico da rede/contrato, sem chave privada |
+| GET | `/scoreboard/scores/<player>` | Totais da carteira na rede configurada; inteiros retornados como strings decimais |
 | POST | `/scoreboard/transaction` | Recebe `{"player":"0x..."}` e prepara a transação autorizada; não a envia |
 
 ## Solução de problemas
@@ -310,6 +358,8 @@ O workflow atual do GitHub Actions executa apenas pytest em push e pull request 
 | Ganache imprime código JavaScript e encerra | Confira `node --version`; a integração foi validada com Node.js 22 e Ganache 7.9.2 |
 | `forge` ou `anvil` não encontrado | Adicione `$HOME/.foundry/bin` ao PATH |
 | Botão de registro ausente | Confira `.env.scoreboard`, reinicie Flask e confirme o palpite; `supersecretkey` desabilita o placar |
+| Registro desabilitado ou placar indisponível | Abra **Placar na blockchain**, confira o diagnóstico e clique em **Atualizar placar** após corrigir a rede ou configuração |
+| Autoridade de assinatura incorreta | Confira se `.env.scoreboard` corresponde ao contrato implantado e se uma variável exportada sobrescreve a chave |
 | Contrato não encontrado | Verifique a rede da carteira e implante novamente se a rede local tiver sido resetada |
 | Registro cancelado ou pendente | Consulte a carteira; enviar uma transação não significa que ela foi confirmada |
 | Saldo inesperado | Confira `WEB3_PROVIDER_URL`: Sepolia, Ganache e Anvil têm saldos independentes |
@@ -333,6 +383,6 @@ O `.gitignore` mantém fora do repositório:
 
 Confira `git status --short` antes do commit. Para verificar uma regra, use `git check-ignore -v CAMINHO_DO_ARQUIVO`. Arquivos já rastreados precisam ser retirados do índice com `git rm --cached` para que uma nova regra de ignore tenha efeito; isso mantém a cópia local, mas não remove versões do histórico anterior.
 
-A persistência JSON e o estado global do Flask ainda não foram preparados para gravações concorrentes por vários processos. O servidor iniciado por `app.py` é de desenvolvimento. Antes de publicar para múltiplos usuários, são próximos passos migrar a persistência, revisar autenticação/validação de resultados e configurar um servidor de produção. O suporte ao placar em redes públicas ainda não está implementado.
+A persistência JSON e o estado global do Flask ainda não foram preparados para gravações concorrentes por vários processos. O servidor iniciado por `app.py` é de desenvolvimento. Antes de publicar para múltiplos usuários, são próximos passos migrar a persistência, revisar autenticação/validação de resultados e configurar um servidor de produção. A única rede pública suportada pelo placar é a testnet Sepolia. O projeto ainda não foi preparado para mainnet ou uso competitivo.
 
 Referências de configuração: [opções Ganache CLI](https://github.com/ConsenSys-archive/ganache) e [padrões do workspace Ganache](https://archive.trufflesuite.com/docs/ganache/reference/workspace-default-configuration/).
