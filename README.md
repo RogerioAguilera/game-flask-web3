@@ -125,7 +125,7 @@ O contador da interface é mantido em memória no navegador e reinicia ao recarr
 | `SCOREBOARD_ADDRESS` | Endereço do contrato na rede local | Vazio: placar desabilitado |
 | `SCOREBOARD_SIGNER_KEY` | Chave dedicada do servidor para autorizar resultados | Vazio: placar desabilitado |
 
-Prioridade de configuração: **variáveis exportadas no terminal → `.env.scoreboard` → `.env` → padrões do código**. O script de implantação gera `.env.scoreboard` com uma chave de sessão aleatória, uma chave de assinatura dedicada e o endereço do contrato. Ele reutiliza as chaves desse arquivo nas próximas implantações e atualiza o endereço.
+Prioridade de configuração do Flask: **variáveis exportadas no terminal → `.env.scoreboard` → `.env` → padrões do código**. O script de implantação gera `.env.scoreboard` com uma chave de sessão aleatória, uma chave de assinatura dedicada e o endereço do contrato. Ele reutiliza as chaves desse arquivo nas próximas implantações e atualiza o endereço. Para as chaves, o script de implantação usa o arquivo anterior ou gera novos valores; não importa chaves de `.env` ou do terminal. Evite exportar `SECRET_KEY` ou `SCOREBOARD_SIGNER_KEY` com valores diferentes dos gerados, pois o Flask dará prioridade a eles.
 
 `.env.example` pode ser publicado como modelo, com valores fictícios ou vazios. Chaves privadas, segredos de sessão e URLs com tokens devem ficar nos arquivos locais ignorados pelo Git. A chave do servidor não é a chave da carteira do jogador.
 
@@ -154,6 +154,8 @@ Após uma partida concluída e seu feedback, o Flask prepara uma autorização a
 ### Iniciar Ganache e implantar
 
 Abra seu workspace no Ganache e confira o servidor RPC. Os padrões do projeto são `http://127.0.0.1:7545` e Chain ID `1337`. O **Network ID** exibido no Ganache (frequentemente `5777`) é diferente do **Chain ID**, obtido por `eth_chainId`.
+
+O Ganache 7.9.2 foi validado neste projeto com Node.js 22. O Node.js 12 encontrado no ambiente apresentou incompatibilidade ao iniciar o CLI. Confira a versão com `node --version`.
 
 Se usar Ganache CLI já instalado, execute em um terminal:
 
@@ -271,6 +273,14 @@ Em outro terminal:
 .venv/bin/python scripts/check_scoreboard.py
 ```
 
+Para executar a integração em um workspace Ganache **descartável**, após compilar o contrato:
+
+```bash
+.venv/bin/python scripts/check_scoreboard.py --rpc-url http://127.0.0.1:7545 --chain-id 1337
+```
+
+Esse teste implanta seu próprio contrato e envia transações de teste; não atualiza `.env.scoreboard`.
+
 Os testes Python e a integração usam perguntas e estatísticas temporárias, sem alterar a base real do jogo. A integração implanta um contrato, registra uma partida, consulta os totais/evento e verifica a rejeição de duplicação. Os testes da carteira usam um provedor simulado; não substituem uma conferência manual com a extensão real.
 
 O workflow atual do GitHub Actions executa apenas pytest em push e pull request para `main`. Os testes Foundry, carteira e integração são executados separadamente pelos comandos acima.
@@ -297,6 +307,7 @@ O workflow atual do GitHub Actions executa apenas pytest em push e pull request 
 | Erro ao abrir `questions.json` | Crie a base inicial ou configure `QUESTIONS_FILE` com um caminho existente |
 | Perguntas antigas | Inicie uma nova partida; confira qual arquivo está configurado |
 | Visual antigo | Atualize com `Ctrl+Shift+R`; reinicie Flask para carregar alterações de template |
+| Ganache imprime código JavaScript e encerra | Confira `node --version`; a integração foi validada com Node.js 22 e Ganache 7.9.2 |
 | `forge` ou `anvil` não encontrado | Adicione `$HOME/.foundry/bin` ao PATH |
 | Botão de registro ausente | Confira `.env.scoreboard`, reinicie Flask e confirme o palpite; `supersecretkey` desabilita o placar |
 | Contrato não encontrado | Verifique a rede da carteira e implante novamente se a rede local tiver sido resetada |
@@ -324,11 +335,4 @@ Confira `git status --short` antes do commit. Para verificar uma regra, use `git
 
 A persistência JSON e o estado global do Flask ainda não foram preparados para gravações concorrentes por vários processos. O servidor iniciado por `app.py` é de desenvolvimento. Antes de publicar para múltiplos usuários, são próximos passos migrar a persistência, revisar autenticação/validação de resultados e configurar um servidor de produção. O suporte ao placar em redes públicas ainda não está implementado.
 
-Para executar a integração em um workspace Ganache **descartável**, após compilar o contrato:
-
-```bash
-.venv/bin/python scripts/check_scoreboard.py --rpc-url http://127.0.0.1:7545 --chain-id 1337
-```
-
-Esse teste implanta seu próprio contrato e envia transações de teste; não atualiza `.env.scoreboard`.
 Referências de configuração: [opções Ganache CLI](https://github.com/ConsenSys-archive/ganache) e [padrões do workspace Ganache](https://archive.trufflesuite.com/docs/ganache/reference/workspace-default-configuration/).
