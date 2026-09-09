@@ -548,7 +548,7 @@
         document.getElementById('guessEmoji').textContent = emoji;
         document.getElementById('guessText').textContent  = guess;
         document.getElementById('stepsResult').textContent =
-            `Cheguei lá em ${steps} pergunta${steps !== 1 ? 's' : ''}!`;
+            `Fiz esse palpite após ${steps} pergunta${steps !== 1 ? 's' : ''}.`;
 
         history.push({ guess });
         renderHistory();
@@ -588,7 +588,7 @@
         document.getElementById('feedbackBtns').style.display = 'none';
         document.getElementById('feedbackMsg').className = 'feedback-no';
         if (!canLearn) {
-            document.getElementById('feedbackMsg').textContent = 'Havia respostas incertas. Jogue novamente com Sim e Não para ensinar um personagem.';
+            document.getElementById('feedbackMsg').textContent = 'Não acertei desta vez. Como houve respostas “Não sei” ou “Talvez”, ainda não consigo aprender o personagem nesta partida. Você pode tentar novamente.';
             return;
         }
         document.getElementById('feedbackMsg').textContent = '😅 Ops! Me ensine — quem era o personagem?';

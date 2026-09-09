@@ -49,6 +49,9 @@ questions.json
 stats.json
 
 # Foundry build artifacts
+/out/
+/cache/
+/broadcast/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
