@@ -59,6 +59,40 @@ game-flask/
 
 Os arquivos `questions.json`, `stats.json`, `.env` e `.env.scoreboard` são locais e não acompanham um clone. Artefatos Foundry ficam em `contracts/out/`, `contracts/cache/` e `contracts/broadcast/`, também ignorados pelo Git.
 
+## Atalhos com Makefile
+
+Na raiz do projeto, execute `make help` (ou apenas `make`) para listar os comandos.
+É necessário ter GNU Make e as dependências da tarefa instalados; os atalhos não
+criam o ambiente virtual nem instalam pacotes.
+
+| Comando | Ação |
+| --- | --- |
+| `make run` | Iniciar Flask com `.venv/bin/python` |
+| `make test` | Executar pytest, sem blockchain local |
+| `make test-wallet` | Executar os testes da carteira simulada com Node.js |
+| `make contracts-build` | Compilar contratos com Forge |
+| `make test-contracts` | Executar testes Solidity, sem Anvil externo |
+| `make anvil` | Iniciar Anvil na porta 8545, Chain ID 31337 |
+| `make deploy-anvil` | Implantar o placar no Anvil em execução |
+| `make deploy-ganache` | Implantar o placar no Ganache em execução |
+
+Para desenvolver com Anvil, mantenha `make anvil` aberto em um terminal. Em outro,
+execute `make deploy-anvil` e, após o deploy, `make run`. Os comandos de implantação
+salvam a configuração em `.env.scoreboard`; reinicie o Flask se já estiver aberto.
+Cada implantação cria um novo contrato, portanto não é necessário repeti-la
+enquanto o contrato existente continuar disponível na rede local.
+
+O Makefile inclui `~/.foundry/bin` no PATH dos comandos, inclusive dos scripts de
+deploy. É possível personalizar executáveis, por exemplo:
+
+```bash
+make test PYTHON=/caminho/venv/bin/python
+make test-wallet NODE=/caminho/node
+make test-contracts FOUNDRY_BIN=/caminho/foundry/bin
+```
+
+O deploy público na Sepolia continua nos comandos explícitos da seção correspondente.
+
 ## Executar somente o jogo
 
 Pré-requisitos: Python 3.10+ e pip. Os comandos abaixo são para Linux/macOS e devem ser executados na pasta do projeto.
