@@ -316,7 +316,7 @@
         <!-- Guess -->
         <div class="state" id="guessState">
             <div class="guess-emoji" id="guessEmoji">🔮</div>
-            <p class="guess-label">O gênio revela...</p>
+            <p class="guess-label" id="guessHeading">O gênio revela...</p>
             <div class="guess-name" id="guessText"></div>
             <p class="guess-label" id="stepsResult"></p>
             <div class="feedback-row" id="feedbackBtns">
@@ -335,7 +335,7 @@
                     <input class="eth-input" type="text" id="learnEmoji" placeholder="Emoji do personagem (opcional, ex: ⚽)" maxlength="4" style="max-width:260px;">
                     <input class="eth-input" type="text" id="learnQuestion" placeholder="Pergunta Sim/Não diferenciadora *" maxlength="150">
                     <div style="display:flex;align-items:center;gap:14px;font-size:.85rem;color:var(--muted);padding:4px 0;flex-wrap:wrap;">
-                        <span>Para o personagem correto, a resposta é:</span>
+                        <span id="learnAnswerLabel">Para o personagem correto, a resposta é:</span>
                         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:var(--yes-color);">
                             <input type="radio" name="learnAnswer" value="yes"> Sim
                         </label>
@@ -460,6 +460,10 @@
         history = [];
         feedbackGiven = false;
         canLearn = true;
+        document.getElementById('learnCharacter').placeholder = 'Nome do personagem *';
+        document.getElementById('learnEmoji').placeholder = 'Emoji (opcional)';
+        document.getElementById('learnAnswerLabel').textContent = 'Para o personagem correto, a resposta é:';
+        document.querySelector('#learnForm button').textContent = '🧠 Ensinar o Gênio';
         syncUndoButton();
         setAnswersDisabled(false);
         renderHistory();
@@ -520,16 +524,18 @@
         })
         .then(r => r.json())
         .then(data => {
-            if (data.question || data.guess) history.push({q: answeredQuestion, a: answer});
+            if (data.question || data.guess || data.not_found) history.push({q: answeredQuestion, a: answer});
             if (data.question) {
                 currentQuestion = data.question;
                 setQuestion(data.question, data.steps);
                 setAnswersDisabled(false);
+            } else if (data.not_found) {
+                showUnmatchedSaga(data);
             } else if (data.guess) {
                 canLearn = data.can_learn !== false;
                 total++;
                 updateScore();
-                showGuess(data.guess, data.emoji || '🔮', data.steps);
+                showGuess(data.guess, data.emoji || '🔮', data.steps, data.icon);
             } else {
                 alert(data.error || 'Erro inesperado.');
                 setAnswersDisabled(false);
@@ -541,11 +547,49 @@
         }).finally(() => { gameRequestPending = false; syncUndoButton(); });
     }
 
-    function showGuess(guess, emoji, steps) {
+    function showUnmatchedSaga(data) {
+        canLearn = data.can_learn;
+        resetScoreboard();
+        document.getElementById('guessHeading').textContent = 'Vamos descobrir juntos';
+        document.getElementById('guessEmoji').textContent = '📚';
+        document.getElementById('guessText').textContent = 'Não encontrei uma saga compatível com suas respostas.';
+        document.getElementById('stepsResult').textContent = `Você respondeu ${data.steps} pergunta(s).`;
+        document.getElementById('feedbackBtns').style.display = 'none';
+        document.getElementById('feedbackMsg').textContent = canLearn
+            ? 'Quer me ensinar? Preencha o nome e uma pergunta que identifique a saga.'
+            : 'Volte para corrigir as respostas incertas ou reinicie com Sim e Não para ensinar uma saga.';
+        document.getElementById('learnForm').style.display = canLearn ? 'block' : 'none';
+        document.getElementById('learnCharacter').placeholder = 'Nome da saga *';
+        document.getElementById('learnQuestionLabel').textContent = 'Qual pergunta identifica essa saga?';
+        document.getElementById('learnAnswerLabel').textContent = 'Para essa saga, a resposta é:';
+        document.querySelector('#learnForm button').textContent = '📚 Ensinar saga';
+        renderHistory();
+        document.getElementById('historyPanel').style.display = 'block';
+        show('guessState');
+    }
+
+    function showGuess(guess, emoji, steps, icon) {
+        document.getElementById('guessHeading').textContent = 'O gênio revela...';
+        document.getElementById('feedbackBtns').style.display = 'flex';
+        document.getElementById('learnForm').style.display = 'none';
+        document.getElementById('feedbackMsg').textContent = '';
         currentGuessName = guess;
         document.getElementById('progressFill').style.width = '100%';
 
-        document.getElementById('guessEmoji').textContent = emoji;
+        const guessIcon = document.getElementById('guessEmoji');
+        guessIcon.textContent = emoji;
+        const normalizedGuess = guess.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+        const yellowRing = icon === 'yellow-ring' || normalizedGuess === 'a guerra dos aneis';
+        if (yellowRing || guess === 'Crepúsculo Esmeralda') {
+            const ring = document.createElement('img');
+            ring.src = yellowRing
+                ? {{ url_for('static', filename='yellow-ring.svg') | tojson }}
+                : {{ url_for('static', filename='emerald-ring.svg') | tojson }};
+            ring.alt = yellowRing ? 'Anel de poder amarelo' : 'Anel de poder verde com símbolo de lanterna';
+            ring.width = 76;
+            ring.height = 76;
+            guessIcon.replaceChildren(ring);
+        }
         document.getElementById('guessText').textContent  = guess;
         document.getElementById('stepsResult').textContent =
             `Fiz esse palpite após ${steps} pergunta${steps !== 1 ? 's' : ''}.`;

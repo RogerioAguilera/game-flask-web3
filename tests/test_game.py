@@ -191,3 +191,38 @@ def test_invalid_answer_does_not_create_undo_history(client):
     client.post('/start_game')
     client.post('/answer', json={'answer': 'invalid'})
     assert client.post('/undo_answer').status_code == 400
+
+
+def test_unmatched_saga_can_be_learned_without_counting_a_guess(client):
+    client.post('/start_game')
+    app_module.GUESSES[3].update(guess='Ainda não conheço essa saga', unmatched=True)
+    result = client.post('/answer', json={'answer': 'no'}).get_json()
+    assert result['not_found'] is True
+    assert result['can_learn'] is True
+    assert 'guess' not in result
+    assert app_module.STATS['guesses'] == {}
+    assert client.post('/feedback', json={'correct': True}).status_code == 400
+    response = client.post('/learn', json={
+        'character': 'Saga de teste', 'emoji': '📚',
+        'question': 'A história se passa no espaço?', 'new_char_answer': 'yes'})
+    assert response.status_code == 200
+    client.post('/start_game')
+    assert client.post('/answer', json={'answer': 'no'}).get_json()['question'] == 'A história se passa no espaço?'
+    assert client.post('/answer', json={'answer': 'yes'}).get_json()['guess'] == 'Saga de teste'
+    client.post('/start_game')
+    client.post('/answer', json={'answer': 'no'})
+    assert client.post('/answer', json={'answer': 'no'}).get_json()['not_found'] is True
+    assert client.post('/undo_answer').status_code == 200
+    with client.session_transaction() as state:
+        assert 'unmatched_id' not in state
+
+
+def test_uncertain_unmatched_saga_does_not_enable_learning(client):
+    client.post('/start_game')
+    app_module.GUESSES[2].update(guess='Ainda não conheço essa saga', unmatched=True)
+    result = client.post('/answer', json={'answer': 'maybe'}).get_json()
+    assert result['not_found'] is True
+    assert result['can_learn'] is False
+    assert app_module.STATS['guesses'] == {}
+    assert client.post('/learn', json={'character': 'Saga', 'question': 'Pergunta?',
+                                     'new_char_answer': 'yes'}).status_code == 400

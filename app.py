@@ -11,6 +11,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env.score
 load_dotenv()
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.secret_key = os.getenv('SECRET_KEY', 'supersecretkey')
 app.register_blueprint(scoreboard)
 
@@ -123,19 +124,26 @@ STATS = load_stats()
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html'), 200, {'Cache-Control': 'no-store'}
 
 
 @app.route('/start_game', methods=['POST'])
 def start_game():
     global QUESTIONS, GUESSES
     QUESTIONS, GUESSES = load_data()
-    for key in ('last_guess_id', 'last_parent_q', 'last_parent_dir', 'result_correct', 'uncertain_root', 'uncertain_answers', 'answer_history'):
+    for key in ('last_guess_id', 'last_parent_q', 'last_parent_dir', 'result_correct', 'uncertain_root', 'uncertain_answers', 'answer_history', 'unmatched_id'):
         session.pop(key, None)
     session['game_id'] = secrets.token_hex(32)
     session['current_q'] = 1
     session['steps'] = 0
     return jsonify({'question': QUESTIONS[1]['question'], 'steps': 0})
+
+
+def unmatched_result(node_id, steps, can_learn):
+    session['unmatched_id'] = node_id
+    session.pop('last_guess_id', None)
+    return jsonify({'not_found': True, 'kind': 'saga', 'steps': steps,
+                    'can_learn': can_learn})
 
 
 def uncertain_answer(current_q, user_answer, steps):
@@ -179,9 +187,11 @@ def uncertain_answer(current_q, user_answer, steps):
     session.pop('last_parent_q', None)
     session.pop('last_parent_dir', None)
     guess = GUESSES[guess_id]
+    if guess.get('unmatched'):
+        return unmatched_result(guess_id, steps, False)
     record_guess_reached(guess_id)
     return jsonify({'guess': guess['guess'], 'emoji': guess.get('emoji', '🔮'),
-                    'steps': steps, 'can_learn': False})
+                    'steps': steps, 'can_learn': False, 'icon': guess.get('icon')})
 
 
 @app.route('/answer', methods=['POST'])
@@ -220,8 +230,10 @@ def answer():
     session['last_parent_q'] = current_q
     session['last_parent_dir'] = user_answer
     if guess:
+        if guess.get('unmatched'):
+            return unmatched_result(next_id, steps, True)
         record_guess_reached(next_id)
-        return jsonify({'guess': guess['guess'], 'emoji': guess.get('emoji', '🔮'), 'steps': steps})
+        return jsonify({'guess': guess['guess'], 'emoji': guess.get('emoji', '🔮'), 'steps': steps, 'icon': guess.get('icon')})
 
     return jsonify({'error': 'Personagem não encontrado.'}), 400
 
@@ -247,6 +259,7 @@ def undo_answer():
     else:
         session.pop('uncertain_root', None)
         session.pop('uncertain_answers', None)
+    session.pop('unmatched_id', None)
     guess_id = session.pop('last_guess_id', None)
     session.pop('last_parent_q', None)
     session.pop('last_parent_dir', None)
@@ -322,7 +335,7 @@ def stats():
 
 @app.route('/learn', methods=['POST'])
 def learn():
-    wrong_guess_id = session.get('last_guess_id')
+    wrong_guess_id = session.get('last_guess_id') or session.get('unmatched_id')
     if not wrong_guess_id or wrong_guess_id not in GUESSES:
         return jsonify({'error': 'Sessão inválida para aprendizado.'}), 400
 

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="band" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop stop-color="#fff175"/>
+      <stop offset=".45" stop-color="#e5b719"/>
+      <stop offset="1" stop-color="#876009"/>
+    </linearGradient>
+    <radialGradient id="face">
+      <stop stop-color="#aa7f0c"/>
+      <stop offset="1" stop-color="#493307"/>
+    </radialGradient>
+  </defs>
+  <!-- Broad metal band and a flat signet face, without a gemstone. -->
+  <ellipse cx="50" cy="61" rx="28" ry="28" fill="none" stroke="#453107" stroke-width="19"/>
+  <ellipse cx="50" cy="59" rx="28" ry="28" fill="none" stroke="url(#band)" stroke-width="14"/>
+  <path d="M24 43 19 62M76 43l5 19" stroke="#ffda38" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="50" cy="34" r="27" fill="url(#band)" stroke="#59400a" stroke-width="2"/>
+  <circle cx="50" cy="33" r="22" fill="url(#face)" stroke="#ffe96a" stroke-width="2"/>
+  <!-- Glowing lantern emblem engraved on the circular face. -->
+  <g fill="none" stroke="#fff5a3" stroke-width="5">
+    <circle cx="50" cy="33" r="10"/>
+    <path d="M36 19h28M36 47h28M42 19v7m16-7v7M42 40v7m16-7v7"/>
+  </g>
+</svg>
