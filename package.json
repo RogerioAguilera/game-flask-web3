@@ -1,0 +1,16 @@
+{
+  "name": "game-flask-tests",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "e2e:server": "${E2E_PYTHON:-.venv/bin/python} scripts/serve_e2e.py",
+    "test:e2e": "start-server-and-test e2e:server http://127.0.0.1:5055/__e2e/health 'cypress run'",
+    "test:e2e:open": "start-server-and-test e2e:server http://127.0.0.1:5055/__e2e/health 'cypress open'"
+  },
+  "devDependencies": {
+    "cypress": "16.1.0",
+    "start-server-and-test": "3.0.12"
+  }
+}

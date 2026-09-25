@@ -86,3 +86,7 @@ node_modules/
 
 # Generated design references (runtime assets belong in static/)
 output/imagegen/
+
+# Cypress generated artifacts
+/cypress/screenshots/
+/cypress/videos/

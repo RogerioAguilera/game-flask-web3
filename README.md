@@ -420,3 +420,32 @@ Confira `git status --short` antes do commit. Para verificar uma regra, use `git
 A persistência JSON e o estado global do Flask ainda não foram preparados para gravações concorrentes por vários processos. O servidor iniciado por `app.py` é de desenvolvimento. Antes de publicar para múltiplos usuários, são próximos passos migrar a persistência, revisar autenticação/validação de resultados e configurar um servidor de produção. A única rede pública suportada pelo placar é a testnet Sepolia. O projeto ainda não foi preparado para mainnet ou uso competitivo.
 
 Referências de configuração: [opções Ganache CLI](https://github.com/ConsenSys-archive/ganache) e [padrões do workspace Ganache](https://archive.trufflesuite.com/docs/ganache/reference/workspace-default-configuration/).
+
+
+## Testes de navegador com Cypress
+
+Use Node.js 22 atualizado e as dependências Python instaladas na `.venv`.
+Na primeira execução, instale as dependências JavaScript com `npm ci`.
+
+```bash
+make test-e2e       # Electron, sem interface
+make test-e2e-open  # interface interativa do Cypress
+```
+
+Os comandos iniciam e encerram um Flask exclusivo em `127.0.0.1:5055`.
+Deixe essa porta livre. Não é preciso iniciar `make run`, Anvil ou carteira.
+O servidor `scripts/serve_e2e.py` usa perguntas e estatísticas temporárias,
+ignora os arquivos `.env` pessoais e permite reiniciar os dados entre testes.
+As rotas `/__e2e/*` existem somente nesse servidor, nunca no app normal.
+Não use esse servidor de testes para disponibilizar o jogo a outras pessoas.
+
+Os cenários cobrem correção de respostas, incerteza, aprendizado de personagem
+e saga, consulta de saldo e registro/rejeição com carteira simulada. O jogo
+usa o Flask real; saldo e operações blockchain são interceptados pelo Cypress,
+sem envio de transações. Os testes Forge e a integração Ganache continuam separados.
+
+No Linux, o navegador exige bibliotecas de sistema e Xvfb; veja os
+[pré-requisitos oficiais do Cypress](https://docs.cypress.io/app/get-started/install-cypress).
+O Node 12 não é compatível. Com nvm, use `nvm use 22` antes de executar os comandos.
+Screenshots de falhas ficam em `cypress/screenshots/` e são ignorados pelo Git.
+O GitHub Actions executa a suíte e salva esses screenshots quando houver falha.

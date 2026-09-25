@@ -14,6 +14,8 @@ help:
 	  'make run              Iniciar Flask' \
 	  'make test             Executar pytest' \
 	  'make test-wallet      Executar testes da carteira simulada' \
+	  'make test-e2e         Executar Cypress com Flask isolado' \
+	  'make test-e2e-open    Abrir Cypress interativo com Flask isolado' \
 	  'make contracts-build  Compilar contratos com Forge' \
 	  'make test-contracts   Executar testes Solidity' \
 	  'make anvil            Iniciar Anvil em 127.0.0.1:8545 (Chain ID 31337)' \
@@ -43,3 +45,11 @@ deploy-anvil:
 
 deploy-ganache:
 	"$(PYTHON)" scripts/deploy_scoreboard.py --network ganache
+
+.PHONY: test-e2e test-e2e-open
+
+test-e2e:
+	env -u ELECTRON_RUN_AS_NODE E2E_PYTHON="$(PYTHON)" npm run test:e2e
+
+test-e2e-open:
+	env -u ELECTRON_RUN_AS_NODE E2E_PYTHON="$(PYTHON)" npm run test:e2e:open
