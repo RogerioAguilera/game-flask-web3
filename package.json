@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "cypress": "16.1.0",
+    "cypress-mochawesome-reporter": "5.0.0",
     "start-server-and-test": "3.0.12"
   }
 }

@@ -90,3 +90,5 @@ output/imagegen/
 # Cypress generated artifacts
 /cypress/screenshots/
 /cypress/videos/
+
+/cypress/reports/

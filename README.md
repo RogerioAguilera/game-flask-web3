@@ -449,3 +449,22 @@ No Linux, o navegador exige bibliotecas de sistema e Xvfb; veja os
 O Node 12 não é compatível. Com nvm, use `nvm use 22` antes de executar os comandos.
 Screenshots de falhas ficam em `cypress/screenshots/` e são ignorados pelo Git.
 O GitHub Actions executa a suíte e salva esses screenshots quando houver falha.
+
+
+### Relatório HTML do Cypress
+
+Após instalar as dependências com `npm ci`, execute `make test-e2e` usando Node 22.
+O relatório é gerado automaticamente em `cypress/reports/index.html`, com os
+resultados, duração dos cenários e screenshots incorporados quando houver falhas.
+Abra o arquivo no navegador; os recursos visuais ficam embutidos no HTML.
+
+```bash
+xdg-open cypress/reports/index.html
+```
+
+O relatório indica que os testes usam dados temporários e carteira/RPC simulados.
+Ele não comprova execução de transações em uma blockchain real. Cada execução
+substitui o relatório anterior; copie-o se desejar preservar um histórico.
+O relatório é gerado no modo `cypress run` (`make test-e2e`), não no modo interativo.
+No GitHub Actions, baixe o artefato `cypress-report` na execução do workflow,
+extraia e abra `index.html`. Os relatórios gerados estão no `.gitignore`.
