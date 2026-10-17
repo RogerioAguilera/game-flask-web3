@@ -1,3 +1,5 @@
+import pytest
+
 import app as app_module
 
 
@@ -65,3 +67,12 @@ def test_network_hides_provider_api_key(client, monkeypatch):
     response = client.get('/network')
     assert response.json['provider'] == 'https://eth-sepolia.g.alchemy.com'
     assert 'private-test-token' not in response.get_data(as_text=True)
+
+
+
+@pytest.mark.parametrize('address', [123, True, [], {}, None, 'x' * 101])
+def test_invalid_balance_input_never_calls_rpc(client, monkeypatch, address):
+    def forbidden(*args):
+        pytest.fail('Invalid input must not reach RPC')
+    monkeypatch.setattr(app_module.w3.eth, 'get_balance', forbidden)
+    assert client.post('/eth_balance', json={'address': address}).status_code == 400

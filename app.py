@@ -286,7 +286,9 @@ def feedback():
         return jsonify({'error': 'Campo "correct" deve ser booleano.'}), 400
 
     if 'result_correct' in session:
-        return jsonify({'error': 'Resultado já confirmado.'}), 409
+        if session['result_correct'] == correct:
+            return jsonify({'success': True})
+        return jsonify({'error': 'Resultado já confirmado com outra resposta.'}), 409
 
     record_guess_feedback(guess_id, correct)
     session['result_correct'] = correct
@@ -342,7 +344,11 @@ def learn():
     data = get_json_body()
     if data is None:
         return jsonify({'error': 'Corpo da requisição deve ser JSON válido.'}), 400
-    character = (data.get('character') or '').strip()
+    for field, limit in (('character', 60), ('question', 150), ('emoji', 16)):
+        value = data.get(field, '')
+        if not isinstance(value, str) or len(value) > limit:
+            return jsonify({'error': f'Campo {field} deve ser texto com até {limit} caracteres.'}), 400
+    character = data.get('character', '').strip()
     emoji = (data.get('emoji') or '🎭').strip() or '🎭'
     question_text = (data.get('question') or '').strip()
     new_char_answer = data.get('new_char_answer')
@@ -411,7 +417,10 @@ def eth_balance():
     data = get_json_body()
     if data is None:
         return jsonify({'error': 'Corpo da requisição deve ser JSON válido.'}), 400
-    address = (data.get('address') or '').strip()
+    raw_address = data.get('address', '')
+    if not isinstance(raw_address, str) or len(raw_address) > 100:
+        return jsonify({'error': 'Endereço Ethereum inválido'}), 400
+    address = raw_address.strip()
     if not w3.is_address(address):
         return jsonify({'error': 'Endereço Ethereum inválido'}), 400
     try:

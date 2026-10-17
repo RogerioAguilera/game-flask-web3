@@ -226,3 +226,12 @@ def test_uncertain_unmatched_saga_does_not_enable_learning(client):
     assert app_module.STATS['guesses'] == {}
     assert client.post('/learn', json={'character': 'Saga', 'question': 'Pergunta?',
                                      'new_char_answer': 'yes'}).status_code == 400
+
+
+def test_repeated_identical_feedback_is_idempotent(client):
+    client.post('/start_game')
+    client.post('/answer', json={'answer': 'yes'})
+    for _ in range(2):
+        assert client.post('/feedback', json={'correct': True}).status_code == 200
+    assert app_module.STATS['guesses']['2']['correct'] == 1
+    assert client.post('/feedback', json={'correct': False}).status_code == 409

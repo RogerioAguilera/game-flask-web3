@@ -1,3 +1,5 @@
+import pytest
+
 import json
 
 import app as app_module
@@ -115,3 +117,16 @@ def test_learn_reuses_existing_character_via_different_path(client):
     assert len(tree["questions"]) == 3
     flash_entries = [g for g in tree["guesses"] if g["guess"] == "Flash"]
     assert len(flash_entries) == 1
+
+
+
+@pytest.mark.parametrize('field', ['character', 'question', 'emoji'])
+@pytest.mark.parametrize('value', [123, True, [], {}, None, 'x' * 151])
+def test_invalid_learning_input_does_not_change_tree(client, field, value):
+    _play(client, ['yes'])
+    before = _tree()
+    payload = {'character': 'Flash', 'question': 'É rápido?', 'emoji': '⚡', 'new_char_answer': 'yes'}
+    payload[field] = value
+    response = client.post('/learn', json=payload)
+    assert response.status_code == 400
+    assert _tree() == before

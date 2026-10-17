@@ -468,3 +468,16 @@ substitui o relatório anterior; copie-o se desejar preservar um histórico.
 O relatório é gerado no modo `cypress run` (`make test-e2e`), não no modo interativo.
 No GitHub Actions, baixe o artefato `cypress-report` na execução do workflow,
 extraia e abra `index.html`. Os relatórios gerados estão no `.gitignore`.
+
+
+### Validação e confirmação de resultados
+
+A API valida tipos e limites de entrada no aprendizado (nome até 60 caracteres,
+pergunta até 150 e emoji até 16). Entradas inválidas retornam HTTP 400 antes de
+alterar a árvore. A consulta de saldo também rejeita tipos inválidos antes do RPC.
+
+A interface só contabiliza o acerto e libera o registro na blockchain depois de
+confirmar o feedback no servidor. Em falha HTTP ou de comunicação, mantém os
+botões para tentar novamente. Repetir a mesma confirmação na sessão não duplica
+as estatísticas; tentar trocar um resultado já confirmado retorna HTTP 409.
+Esses cenários são cobertos por pytest e Cypress.

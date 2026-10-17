@@ -139,3 +139,27 @@ for (const rejected of [false, true]) {
     }
   });
 }
+
+for (const networkFailure of [false, true]) {
+  it(`retries feedback after ${networkFailure ? 'network failure' : 'HTTP 500'} without false success`, () => {
+    start();
+    answer('#btnNo', 'Voa?');
+    answer('#btnYes');
+    cy.get('#guessText').should('have.text', 'Superman');
+    let unavailable = true;
+    cy.intercept('POST', '/feedback', req => {
+      if (!unavailable) return req.continue();
+      if (networkFailure) return req.destroy();
+      req.reply({statusCode: 500, body: {error: 'Erro de teste'}});
+    }).as('failedFeedback');
+    cy.contains('button', 'Acertou!').click();
+    cy.wait('@failedFeedback');
+    cy.get('#feedbackMsg').should('contain.text', 'Tente novamente');
+    cy.get('#scoreWins').should('have.text', '0');
+    cy.get('#registerResult').should('not.be.visible');
+    cy.then(() => { unavailable = false; });
+    cy.contains('button', 'Acertou!').should('be.visible').and('be.enabled').click();
+    cy.get('#feedbackMsg').should('contain.text', 'O Gênio nunca erra');
+    cy.get('#scoreWins').should('have.text', '1');
+  });
+}

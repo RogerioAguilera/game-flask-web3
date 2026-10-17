@@ -602,33 +602,53 @@
         show('guessState');
     }
 
-    function sendFeedback(correct) {
+    async function sendFeedback(correct) {
+        gameRequestPending = true;
+        syncUndoButton();
+        const buttons = document.querySelectorAll('#feedbackBtns button');
+        buttons.forEach(button => button.disabled = true);
+        const message = document.getElementById('feedbackMsg');
+        message.textContent = 'Salvando resultado…';
+        message.className = '';
         feedbackRequest = fetch('/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ correct })
-        }).then(r => r.ok).catch(() => false);
-        syncRegisterButton();
+        }).then(async response => {
+            const data = await response.json();
+            if (!response.ok || data.success !== true) throw new Error(data.error || 'Falha ao salvar resultado.');
+            return true;
+        }).catch(error => {
+            message.className = 'feedback-no';
+            message.textContent = 'Não foi possível confirmar o resultado. Tente novamente. ' + error.message;
+            return false;
+        });
+        try {
+            const saved = await feedbackRequest;
+            if (saved) feedbackGiven = true;
+            return saved;
+        } finally {
+            gameRequestPending = false;
+            buttons.forEach(button => button.disabled = false);
+            syncUndoButton();
+            syncRegisterButton();
+        }
     }
 
-    function markCorrect() {
+    async function markCorrect() {
         if (feedbackGiven || gameRequestPending) return;
-        feedbackGiven = true;
-        syncUndoButton();
+        if (!await sendFeedback(true)) return;
         wins++;
         updateScore();
-        sendFeedback(true);
         document.getElementById('feedbackBtns').style.display = 'none';
         document.getElementById('feedbackMsg').className = 'feedback-yes';
         document.getElementById('feedbackMsg').textContent = '🎉 O Gênio nunca erra!';
         launchConfetti();
     }
 
-    function markWrong() {
+    async function markWrong() {
         if (feedbackGiven || gameRequestPending) return;
-        feedbackGiven = true;
-        syncUndoButton();
-        sendFeedback(false);
+        if (!await sendFeedback(false)) return;
         document.getElementById('feedbackBtns').style.display = 'none';
         document.getElementById('feedbackMsg').className = 'feedback-no';
         if (!canLearn) {
